@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 
 import pandas as pd
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -12,19 +13,22 @@ OUTPUT_DIR = Path(__file__).parent.parent / "data"
 
 def lthing_stats() -> None:
     """Write summary statistics for the LibraryThing dataset to a file."""
+    logger.info("Getting lthing exploration results...")
     output_path = OUTPUT_DIR / "lthing_stats.txt"
 
     if output_path.exists():
+        logger.info("lthing exploration already computed.")
         for line in output_path.read_text().splitlines():
             logger.info(line)
         return
 
+    logger.info("No lthing exploration found. Computing... (~1.7M lines)")
     reviews_path = DATA_DIR / "lthing_data" / "reviews.txt"
     edges_path = DATA_DIR / "lthing_data" / "edges.txt"
 
     records = []
     with open(reviews_path) as f:
-        for line in f:
+        for line in tqdm(f, desc="lthing reviews"):
             line = line.strip()
             if not line.startswith("reviews["):
                 continue
@@ -56,20 +60,23 @@ def lthing_stats() -> None:
 
 def epinions_stats() -> None:
     """Write summary statistics for the Epinions dataset to a file."""
+    logger.info("Getting epinions exploration results...")
     output_path = OUTPUT_DIR / "epinions_stats.txt"
 
     if output_path.exists():
+        logger.info("Epinions exploration already computed.")
         for line in output_path.read_text().splitlines():
             logger.info(line)
         return
 
+    logger.info("No epinions exploration found. Computing... (~195K lines)")
     reviews_path = DATA_DIR / "epinions_data" / "epinions.txt"
     trust_path = DATA_DIR / "epinions_data" / "network_trust.txt"
 
     records = []
     with open(reviews_path, encoding="latin-1") as f:
         next(f)  # skip header
-        for line in f:
+        for line in tqdm(f, desc="epinions reviews"):
             parts = line.strip().split(None, 5)
             if len(parts) < 5:
                 continue
