@@ -1,5 +1,8 @@
+from download import download
+
+
 def main():
-    print("Hello from librec!")
+    download()
 
 
 if __name__ == "__main__":
