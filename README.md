@@ -9,6 +9,17 @@ uv sync   # install dependencies
 ./run.sh  # run the project
 ```
 
+## Logging
+
+The project uses Python's built-in `logging` module. To add logging to a new module:
+
+```python
+import logging
+logger = logging.getLogger(__name__)
+```
+
+Then use `logger.info()`, `logger.warning()`, `logger.error()`, etc. See the [Python logging docs](https://docs.python.org/3/library/logging.html) for more.
+
 ## Contributing
 
 **Branches**
