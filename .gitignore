@@ -4,3 +4,6 @@ venv/
 
 # Data folder (will be autobuilt)
 data/
+
+# Local caching
+__pycache__/
