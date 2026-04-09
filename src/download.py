@@ -1,6 +1,9 @@
+import logging
 import tarfile
 import urllib.request
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 DATASETS = {
     "lthing": "https://mcauleylab.ucsd.edu/public_datasets/data/librarything/lthing_data.tar.gz",
@@ -41,11 +44,11 @@ def _download_and_extract(name: str, url: str) -> None:
     DATA_DIR.mkdir(exist_ok=True)
     archive = DATA_DIR / f"{name}.tar.gz"
 
-    print(f"Downloading {name}...")
+    logger.info(f"Downloading {name}...")
     urllib.request.urlretrieve(url, archive, reporthook=_progress)
     print()
 
-    print(f"Extracting {name}...")
+    logger.info(f"Extracting {name}...")
     with tarfile.open(archive) as tf:
         tf.extractall(DATA_DIR)
 
@@ -60,7 +63,7 @@ def download() -> None:
     for name, url in DATASETS.items():
         extracted = DATA_DIR / f"{name}_data"
         if extracted.exists():
-            print(f"Skipping {name} (already downloaded)")
+            logger.info(f"Skipping {name} (already downloaded)")
             continue
         _download_and_extract(name, url)
 
