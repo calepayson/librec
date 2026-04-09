@@ -41,7 +41,7 @@ def _download_and_extract(name: str, url: str) -> None:
         name: Short identifier for the dataset, used to name the archive file.
         url: URL of the tar.gz archive to download.
     """
-    DATA_DIR.mkdir(exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     archive = DATA_DIR / f"{name}.tar.gz"
 
     logger.info(f"Downloading {name}...")
