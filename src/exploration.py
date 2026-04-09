@@ -2,6 +2,7 @@ import ast
 import logging
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import pandas as pd
 from tqdm import tqdm
 
@@ -54,6 +55,11 @@ def lthing_stats() -> None:
     ]
 
     output_path.write_text("\n".join(lines) + "\n")
+    star_dist.plot.bar(
+        title="LibraryThing Rating Distribution", xlabel="Stars", ylabel="Reviews"
+    )
+    plt.savefig(OUTPUT_DIR / "lthing_ratings.png", bbox_inches="tight")
+    plt.close()
     for line in lines:
         logger.info(line)
 
@@ -104,6 +110,11 @@ def epinions_stats() -> None:
     ]
 
     output_path.write_text("\n".join(lines) + "\n")
+    star_dist.plot.bar(
+        title="Epinions Rating Distribution", xlabel="Stars", ylabel="Reviews"
+    )
+    plt.savefig(OUTPUT_DIR / "epinions_ratings.png", bbox_inches="tight")
+    plt.close()
     for line in lines:
         logger.info(line)
 
