@@ -10,7 +10,7 @@ DATASETS = {
     "epinions": "https://mcauleylab.ucsd.edu/public_datasets/data/epinions/epinions_data.tar.gz",
 }
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+DATA_DIR = Path(__file__).parent.parent / "data" / "raw"
 
 
 def _progress(block: int, block_size: int, total: int) -> None:
