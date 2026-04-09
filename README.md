@@ -1,5 +1,14 @@
 # librec
 
+## Getting Started
+
+This project uses [uv](https://docs.astral.sh/uv/getting-started/installation/) for package management. Install it, then run:
+
+```bash
+uv sync   # install dependencies
+./run.sh  # run the project
+```
+
 ## Contributing
 
 **Branches**
