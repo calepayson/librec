@@ -1,0 +1,6 @@
+# Environments
+.venv/
+venv/
+
+# Data folder (will be autobuilt)
+data/
