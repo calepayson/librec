@@ -5,7 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "matplotlib>=3.10.8",
     "pandas>=3.0.2",
     "ruff==0.15.10",
     "tqdm>=4.67.3",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.5.1",
 ]
