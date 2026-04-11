@@ -12,10 +12,13 @@ DATA_DIR = Path(__file__).parent.parent / "data" / "raw"
 OUTPUT_DIR = Path(__file__).parent.parent / "data"
 
 
-def lthing_stats() -> None:
+def lthing_stats(rebuild: bool = False) -> None:
     """Write summary statistics for the LibraryThing dataset to a file."""
     logger.info("Getting lthing exploration results...")
     output_path = OUTPUT_DIR / "lthing_stats.txt"
+
+    if rebuild and output_path.exists():
+        output_path.unlink()
 
     if output_path.exists():
         logger.info("lthing exploration already computed.")
@@ -43,6 +46,11 @@ def lthing_stats() -> None:
     n_edges = sum(1 for line in open(edges_path) if len(line.split()) == 2)
 
     star_dist = df["stars"].dropna().value_counts().sort_index()
+    sparsity = len(df) / (df["user"].nunique() * df["work"].nunique()) * 100
+
+    feature_lines = [
+        f"    {col:<12}{str(dtype):<10}" for col, dtype in df.dtypes.items()
+    ]
 
     lines = [
         "=== LibraryThing ===",
@@ -50,6 +58,9 @@ def lthing_stats() -> None:
         f"  Users:        {df['user'].nunique():,}",
         f"  Works:        {df['work'].nunique():,}",
         f"  Social edges: {n_edges:,}",
+        f"  Sparsity:     {sparsity:.4f}%",
+        "  Features:",
+        *feature_lines,
         "  Rating distribution:",
         *[f"    {stars:>4}: {count:,}" for stars, count in star_dist.items()],
     ]
@@ -64,10 +75,13 @@ def lthing_stats() -> None:
         logger.info(line)
 
 
-def epinions_stats() -> None:
+def epinions_stats(rebuild: bool = False) -> None:
     """Write summary statistics for the Epinions dataset to a file."""
     logger.info("Getting epinions exploration results...")
     output_path = OUTPUT_DIR / "epinions_stats.txt"
+
+    if rebuild and output_path.exists():
+        output_path.unlink()
 
     if output_path.exists():
         logger.info("Epinions exploration already computed.")
@@ -88,23 +102,38 @@ def epinions_stats() -> None:
                 continue
             try:
                 records.append(
-                    {"item": parts[0], "user": parts[1], "stars": float(parts[4])}
+                    {
+                        "item": parts[0],
+                        "user": parts[1],
+                        "paid": float(parts[2]),
+                        "time": int(parts[3]),
+                        "stars": float(parts[4]),
+                        "words": parts[5] if len(parts) > 5 else "",
+                    }
                 )
             except ValueError:
                 continue
+
     df = pd.DataFrame(records)
     df = df[df["stars"].between(1, 5)]
-    item_col, user_col, stars_col = "item", "user", "stars"
 
     n_trust = sum(1 for line in open(trust_path) if len(line.split()) == 3)
-    star_dist = df[stars_col].value_counts().sort_index()
+    star_dist = df["stars"].value_counts().sort_index()
+    sparsity = len(df) / (df["user"].nunique() * df["item"].nunique()) * 100
+
+    feature_lines = [
+        f"    {col:<12}{str(dtype):<10}" for col, dtype in df.dtypes.items()
+    ]
 
     lines = [
         "=== Epinions ===",
         f"  Reviews:     {len(df):,}",
-        f"  Users:       {df[user_col].nunique():,}",
-        f"  Items:       {df[item_col].nunique():,}",
+        f"  Users:       {df['user'].nunique():,}",
+        f"  Items:       {df['item'].nunique():,}",
         f"  Trust edges: {n_trust:,}",
+        f"  Sparsity:    {sparsity:.4f}%",
+        "  Features:",
+        *feature_lines,
         "  Rating distribution:",
         *[f"    {stars:>4}: {count:,}" for stars, count in star_dist.items()],
     ]
@@ -119,10 +148,10 @@ def epinions_stats() -> None:
         logger.info(line)
 
 
-def explore() -> None:
+def explore(rebuild: bool = False) -> None:
     """Write summary statistics for all datasets to files."""
-    lthing_stats()
-    epinions_stats()
+    lthing_stats(rebuild=rebuild)
+    epinions_stats(rebuild=rebuild)
 
 
 if __name__ == "__main__":
