@@ -1,4 +1,5 @@
 import logging
+import shutil
 import tarfile
 import urllib.request
 from pathlib import Path
@@ -55,16 +56,20 @@ def _download_and_extract(name: str, url: str) -> None:
     archive.unlink()
 
 
-def download() -> None:
+def download(rebuild: bool = False) -> None:
     """Download and extract all datasets listed in DATASETS.
 
-    Skips any dataset whose extracted directory already exists in DATA_DIR.
+    Skips any dataset whose extracted directory already exists in DATA_DIR,
+    unless rebuild is True, in which case existing data is deleted first.
     """
     for name, url in DATASETS.items():
         extracted = DATA_DIR / f"{name}_data"
         if extracted.exists():
-            logger.info(f"Skipping {name} (already downloaded)")
-            continue
+            if not rebuild:
+                logger.info(f"Skipping {name} (already downloaded)")
+                continue
+            logger.info(f"Removing existing {name} data...")
+            shutil.rmtree(extracted)
         _download_and_extract(name, url)
 
 
