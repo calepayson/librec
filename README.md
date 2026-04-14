@@ -9,6 +9,46 @@ uv sync   # install dependencies
 ./run.sh  # run the project
 ```
 
+## Pipeline
+
+`./run.sh` runs `src/main.py`, which executes these stages in order. Each stage
+writes an artifact into `data/` and is skipped on subsequent runs if its
+artifact already exists.
+
+| Stage | Module | Artifact |
+| --- | --- | --- |
+| `download` | `src/download.py` | `data/raw/{lthing,epinions}_data/` |
+| `exploration` | `src/exploration.py` | `data/{lthing,epinions}_stats.txt`, `_ratings.png` |
+| `split` | `src/split.py` | `data/{lthing,epinions}_{train,val,test}.parquet` |
+| `baseline` | `src/baseline.py` | `data/{lthing,epinions}_baseline.txt` |
+
+### Split
+
+Temporal 80 / 10 / 10 split on the `time` column. Each parquet row is
+`(user, item, stars, time)` — that's the shared schema individual variants
+should consume.
+
+### Baseline model
+
+A LightGBM regressor is trained per dataset to predict `stars` from
+`user_code` and `item_code` (user/item ids encoded as categorical features
+using the train-set vocabulary; unseen ids in val/test get code `-1`).
+Training uses early stopping on validation RMSE, and the final RMSE is
+reported on both the validation and test splits.
+
+## Rebuilding stages
+
+Each stage short-circuits when its artifact exists. To force recomputation,
+pass `--rebuild` (or `-r`) with the stage name:
+
+```bash
+./run.sh --rebuild baseline       # retrain just the LightGBM models
+./run.sh --rebuild split          # rebuild splits (remember to also -r baseline)
+./run.sh --rebuild exploration    # recompute dataset summary stats
+./run.sh --rebuild download       # re-download raw data
+./run.sh --rebuild                # rebuild everything (same as --rebuild all)
+```
+
 ## Logging
 
 The project uses Python's built-in `logging` module. To add logging to a new module:

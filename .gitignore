@@ -7,3 +7,6 @@ data/
 
 # Local caching
 __pycache__/
+
+# macOS
+.DS_Store
