@@ -20,6 +20,7 @@ artifact already exists.
 | `download` | `src/download.py` | `data/raw/{lthing,epinions}_data/` |
 | `exploration` | `src/exploration.py` | `data/{lthing,epinions}_stats.txt`, `_ratings.png` |
 | `split` | `src/split.py` | `data/{lthing,epinions}_{train,val,test}.parquet` |
+| `global_mean` | `src/global_mean.py` | `data/{lthing,epinions}_global_mean.txt` |
 | `baseline` | `src/baseline.py` | `data/{lthing,epinions}_baseline.txt` |
 
 ### Split
@@ -28,7 +29,13 @@ Temporal 80 / 10 / 10 split on the `time` column. Each parquet row is
 `(user, item, stars, time)` — that's the shared schema individual variants
 should consume.
 
-### Baseline model
+### Global-mean baseline
+
+A trivial floor: predict the train-set mean `stars` for every (user, item)
+and report RMSE on val and test. Useful as a reference point that any real
+model should beat.
+
+### LightGBM baseline
 
 A LightGBM regressor is trained per dataset to predict `stars` from
 `user_code` and `item_code` (user/item ids encoded as categorical features
@@ -43,6 +50,7 @@ pass `--rebuild` (or `-r`) with the stage name:
 
 ```bash
 ./run.sh --rebuild baseline       # retrain just the LightGBM models
+./run.sh --rebuild global_mean    # recompute global-mean baselines
 ./run.sh --rebuild split          # rebuild splits (remember to also -r baseline)
 ./run.sh --rebuild exploration    # recompute dataset summary stats
 ./run.sh --rebuild download       # re-download raw data
