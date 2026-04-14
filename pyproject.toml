@@ -5,8 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "lightgbm>=4.6.0",
     "matplotlib>=3.10.8",
     "pandas>=3.0.2",
+    "pyarrow>=23.0.1",
     "ruff==0.15.10",
     "tqdm>=4.67.3",
 ]
