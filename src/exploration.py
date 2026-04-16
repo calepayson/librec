@@ -110,8 +110,11 @@ def _load_epinions() -> tuple[pd.DataFrame, pd.DataFrame]:
 def lthing_stats(df: pd.DataFrame, edges: pd.DataFrame, rebuild: bool = False) -> None:
     """Write summary statistics for the LibraryThing dataset to a file."""
     output_path = OUTPUT_DIR / "lthing_stats.txt"
-    if rebuild and output_path.exists():
-        output_path.unlink()
+    plot_path = OUTPUT_DIR / "lthing_ratings.png"
+    if rebuild:
+        for p in (output_path, plot_path):
+            if p.exists():
+                p.unlink()
     if output_path.exists():
         logger.info("lthing stats already computed.")
         for line in output_path.read_text().splitlines():
@@ -149,8 +152,11 @@ def epinions_stats(
 ) -> None:
     """Write summary statistics for the Epinions dataset to a file."""
     output_path = OUTPUT_DIR / "epinions_stats.txt"
-    if rebuild and output_path.exists():
-        output_path.unlink()
+    plot_path = OUTPUT_DIR / "epinions_ratings.png"
+    if rebuild:
+        for p in (output_path, plot_path):
+            if p.exists():
+                p.unlink()
     if output_path.exists():
         logger.info("Epinions stats already computed.")
         for line in output_path.read_text().splitlines():
