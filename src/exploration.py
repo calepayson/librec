@@ -525,11 +525,21 @@ def eda(
 ) -> None:
     """Run EDA: cold start, social coverage, trust overlap, Lorenz curves, comparison table."""
     sentinel = OUTPUT_DIR / "eda_done.txt"
+    eda_artifacts = [
+        OUTPUT_DIR / "cold_start_severity.png",
+        OUTPUT_DIR / "social_coverage_cold_users.png",
+        OUTPUT_DIR / "epinions_trust_rating_overlap.png",
+        OUTPUT_DIR / "lorenz_curves.png",
+        OUTPUT_DIR / "dataset_comparison.txt",
+        sentinel,
+    ]
     if sentinel.exists() and not rebuild:
         logger.info("EDA already computed. Skipping.")
         return
-    if rebuild and sentinel.exists():
-        sentinel.unlink()
+    if rebuild:
+        for p in eda_artifacts:
+            if p.exists():
+                p.unlink()
 
     logger.info("Running EDA...")
     _plot_cold_start(df_lt, df_ep)
