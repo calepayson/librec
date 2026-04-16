@@ -74,12 +74,16 @@ def _load_epinions() -> tuple[pd.DataFrame, pd.DataFrame]:
             if len(parts) < 5:
                 continue
             try:
-                records.append({
-                    "item": parts[0], "user": parts[1],
-                    "paid": float(parts[2]), "time": int(parts[3]),
-                    "stars": float(parts[4]),
-                    "words": parts[5] if len(parts) > 5 else "",
-                })
+                records.append(
+                    {
+                        "item": parts[0],
+                        "user": parts[1],
+                        "paid": float(parts[2]),
+                        "time": int(parts[3]),
+                        "stars": float(parts[4]),
+                        "words": parts[5] if len(parts) > 5 else "",
+                    }
+                )
             except ValueError:
                 continue
 
@@ -89,7 +93,9 @@ def _load_epinions() -> tuple[pd.DataFrame, pd.DataFrame]:
             parts = line.split()
             if len(parts) == 3:
                 try:
-                    trust_rows.append({"src": parts[0], "dst": parts[1], "weight": float(parts[2])})
+                    trust_rows.append(
+                        {"src": parts[0], "dst": parts[1], "weight": float(parts[2])}
+                    )
                 except ValueError:
                     trust_rows.append({"src": parts[0], "dst": parts[1], "weight": 1.0})
 
@@ -101,7 +107,7 @@ def _load_epinions() -> tuple[pd.DataFrame, pd.DataFrame]:
 # -- Basic stats ---------------------------------------------------------------
 
 
-def lthing_stats(rebuild: bool = False) -> None:
+def lthing_stats(df: pd.DataFrame, edges: pd.DataFrame, rebuild: bool = False) -> None:
     """Write summary statistics for the LibraryThing dataset to a file."""
     output_path = OUTPUT_DIR / "lthing_stats.txt"
     if rebuild and output_path.exists():
@@ -113,11 +119,7 @@ def lthing_stats(rebuild: bool = False) -> None:
         return
 
     logger.info("Computing lthing stats... (~1.7M lines)")
-    df, _ = _load_lthing()
-    n_edges = sum(
-        1 for line in open(DATA_DIR / "lthing_data" / "edges.txt")
-        if len(line.split()) == 2
-    )
+    n_edges = len(edges)
     star_dist = df["stars"].dropna().value_counts().sort_index()
     sparsity = len(df) / (df["user"].nunique() * df["work"].nunique()) * 100
 
@@ -134,13 +136,17 @@ def lthing_stats(rebuild: bool = False) -> None:
         *[f"    {stars:>4}: {count:,}" for stars, count in star_dist.items()],
     ]
     output_path.write_text("\n".join(lines) + "\n")
-    star_dist.plot.bar(title="LibraryThing Rating Distribution", xlabel="Stars", ylabel="Reviews")
+    star_dist.plot.bar(
+        title="LibraryThing Rating Distribution", xlabel="Stars", ylabel="Reviews"
+    )
     _savefig(OUTPUT_DIR / "lthing_ratings.png")
     for line in lines:
         logger.info(line)
 
 
-def epinions_stats(rebuild: bool = False) -> None:
+def epinions_stats(
+    df: pd.DataFrame, trust: pd.DataFrame, rebuild: bool = False
+) -> None:
     """Write summary statistics for the Epinions dataset to a file."""
     output_path = OUTPUT_DIR / "epinions_stats.txt"
     if rebuild and output_path.exists():
@@ -152,11 +158,7 @@ def epinions_stats(rebuild: bool = False) -> None:
         return
 
     logger.info("Computing epinions stats... (~195K lines)")
-    df, _ = _load_epinions()
-    n_trust = sum(
-        1 for line in open(DATA_DIR / "epinions_data" / "network_trust.txt")
-        if len(line.split()) == 3
-    )
+    n_trust = len(trust)
     star_dist = df["stars"].value_counts().sort_index()
     sparsity = len(df) / (df["user"].nunique() * df["item"].nunique()) * 100
 
@@ -173,7 +175,9 @@ def epinions_stats(rebuild: bool = False) -> None:
         *[f"    {stars:>4}: {count:,}" for stars, count in star_dist.items()],
     ]
     output_path.write_text("\n".join(lines) + "\n")
-    star_dist.plot.bar(title="Epinions Rating Distribution", xlabel="Stars", ylabel="Reviews")
+    star_dist.plot.bar(
+        title="Epinions Rating Distribution", xlabel="Stars", ylabel="Reviews"
+    )
     _savefig(OUTPUT_DIR / "epinions_ratings.png")
     for line in lines:
         logger.info(line)
@@ -196,8 +200,22 @@ def _plot_cold_start(df_lt: pd.DataFrame, df_ep: pd.DataFrame) -> None:
 
     with plt.rc_context(STYLE):
         fig, ax = plt.subplots(figsize=(8, 5))
-        b1 = ax.bar(x - w / 2, lt_fracs, w, label="LibraryThing", color=COLORS["lthing"], alpha=0.9)
-        b2 = ax.bar(x + w / 2, ep_fracs, w, label="Epinions", color=COLORS["epinions"], alpha=0.9)
+        b1 = ax.bar(
+            x - w / 2,
+            lt_fracs,
+            w,
+            label="LibraryThing",
+            color=COLORS["lthing"],
+            alpha=0.9,
+        )
+        b2 = ax.bar(
+            x + w / 2,
+            ep_fracs,
+            w,
+            label="Epinions",
+            color=COLORS["epinions"],
+            alpha=0.9,
+        )
         ax.bar_label(b1, fmt="%.1f%%", padding=3, fontsize=9)
         ax.bar_label(b2, fmt="%.1f%%", padding=3, fontsize=9)
         ax.set_xticks(x)
@@ -211,8 +229,10 @@ def _plot_cold_start(df_lt: pd.DataFrame, df_ep: pd.DataFrame) -> None:
 
 
 def _plot_social_coverage(
-    df_lt: pd.DataFrame, edges_lt: pd.DataFrame,
-    df_ep: pd.DataFrame, trust_ep: pd.DataFrame,
+    df_lt: pd.DataFrame,
+    edges_lt: pd.DataFrame,
+    df_ep: pd.DataFrame,
+    trust_ep: pd.DataFrame,
 ) -> None:
     """% of cold users with >= 1 social/trust edge -- the case for trust propagation."""
     thresholds = [1, 2, 5, 10, 20]
@@ -223,7 +243,9 @@ def _plot_social_coverage(
         social = set(edges["src"].unique())
         counts = df[user_col].value_counts()
         return [
-            100 * len(set(counts[counts <= t].index) & social) / max(len(counts[counts <= t]), 1)
+            100
+            * len(set(counts[counts <= t].index) & social)
+            / max(len(counts[counts <= t]), 1)
             for t in thresholds
         ]
 
@@ -236,10 +258,25 @@ def _plot_social_coverage(
             (lt_cov, "o-", COLORS["lthing"], "LibraryThing (social friends)"),
             (ep_cov, "s-", COLORS["epinions"], "Epinions (trust edges)"),
         ]:
-            ax.plot(thresholds, cov, marker, color=color, linewidth=2, markersize=7, label=label)
+            ax.plot(
+                thresholds,
+                cov,
+                marker,
+                color=color,
+                linewidth=2,
+                markersize=7,
+                label=label,
+            )
             for xv, yv in zip(thresholds, cov):
-                ax.annotate(f"{yv:.0f}%", (xv, yv), textcoords="offset points",
-                            xytext=(0, 8), ha="center", fontsize=9, color=color)
+                ax.annotate(
+                    f"{yv:.0f}%",
+                    (xv, yv),
+                    textcoords="offset points",
+                    xytext=(0, 8),
+                    ha="center",
+                    fontsize=9,
+                    color=color,
+                )
         ax.set_xticks(thresholds)
         ax.set_xticklabels([f"<= {t} ratings" for t in thresholds])
         ax.set_ylabel("% of cold users with >= 1 social connection")
@@ -261,32 +298,58 @@ def _plot_trust_overlap(df_ep: pd.DataFrame, trust_ep: pd.DataFrame) -> None:
     if len(pairs) > 30_000:
         pairs = pairs.sample(30_000, random_state=42)
 
-    counts = np.array([
-        len(user_items.get(s, set()) & user_items.get(d, set()))
-        for s, d in tqdm(pairs.itertuples(index=False), total=len(pairs), desc="trust overlap")
-    ])
+    counts = np.array(
+        [
+            len(user_items.get(s, set()) & user_items.get(d, set()))
+            for s, d in tqdm(
+                pairs.itertuples(index=False), total=len(pairs), desc="trust overlap"
+            )
+        ]
+    )
     zero_pct = 100 * (counts == 0).sum() / len(counts)
 
     max_overlap = int(counts.max())
 
     with plt.rc_context(STYLE):
         fig, (ax, ax2) = plt.subplots(1, 2, figsize=(13, 4))
-        fig.suptitle("Epinions: Co-Rating Overlap Between Trusted Pairs", fontsize=13, fontweight="bold")
+        fig.suptitle(
+            "Epinions: Co-Rating Overlap Between Trusted Pairs",
+            fontsize=13,
+            fontweight="bold",
+        )
         fig.subplots_adjust(top=0.88)
 
         max_show = min(max_overlap, 30)
         bins = range(0, max(max_show + 2, 3))
-        ax.hist(counts[counts <= max_show], bins=bins,
-                color=COLORS["epinions"], alpha=0.85, edgecolor="white", align="left")
+        ax.hist(
+            counts[counts <= max_show],
+            bins=bins,
+            color=COLORS["epinions"],
+            alpha=0.85,
+            edgecolor="white",
+            align="left",
+        )
         ax.set_xlabel("# items co-rated per trust pair")
         ax.set_ylabel("Number of trust pairs")
         ax.set_title("Distribution", fontweight="bold")
-        ax.text(0.6, 0.8, f"{zero_pct:.1f}% share\n0 items", transform=ax.transAxes,
-                fontsize=10, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", edgecolor="gray"))
+        ax.text(
+            0.6,
+            0.8,
+            f"{zero_pct:.1f}% share\n0 items",
+            transform=ax.transAxes,
+            fontsize=10,
+            bbox=dict(
+                boxstyle="round,pad=0.3", facecolor="lightyellow", edgecolor="gray"
+            ),
+        )
 
         sorted_counts = np.sort(counts)
-        ax2.plot(sorted_counts, np.arange(1, len(sorted_counts) + 1) / len(sorted_counts) * 100,
-                 color=COLORS["epinions"], linewidth=2)
+        ax2.plot(
+            sorted_counts,
+            np.arange(1, len(sorted_counts) + 1) / len(sorted_counts) * 100,
+            color=COLORS["epinions"],
+            linewidth=2,
+        )
         ax2.set_xlabel("# co-rated items per trust pair")
         ax2.set_ylabel("Cumulative % of trust pairs")
         ax2.set_title("CDF", fontweight="bold")
@@ -295,31 +358,67 @@ def _plot_trust_overlap(df_ep: pd.DataFrame, trust_ep: pd.DataFrame) -> None:
         for k in [0, 1, 5]:
             if k <= xlim_max:
                 ax2.axvline(k, linestyle="--", color="gray", linewidth=0.9, alpha=0.7)
-                ax2.text(k + 0.4, 15 + k * 8, f"{100 * (counts <= k).mean():.0f}% <= {k}", fontsize=8.5, color="gray")
+                ax2.text(
+                    k + 0.4,
+                    15 + k * 8,
+                    f"{100 * (counts <= k).mean():.0f}% <= {k}",
+                    fontsize=8.5,
+                    color="gray",
+                )
 
         _savefig(OUTPUT_DIR / "epinions_trust_rating_overlap.png")
 
 
 def _plot_lorenz(df_lt: pd.DataFrame, df_ep: pd.DataFrame) -> None:
     """Lorenz curves + Gini -- high Gini motivates BPR/WARP over MSE."""
+
     def lorenz(series):
         v = np.sort(series.values.astype(float))
-        return np.linspace(0, 1, len(v) + 1), np.concatenate([[0], np.cumsum(v) / v.sum()])
+        return np.linspace(0, 1, len(v) + 1), np.concatenate(
+            [[0], np.cumsum(v) / v.sum()]
+        )
 
     with plt.rc_context(STYLE):
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-        fig.suptitle("Lorenz Curves: Inequality of Rating Contributions", fontsize=13, fontweight="bold")
+        fig.suptitle(
+            "Lorenz Curves: Inequality of Rating Contributions",
+            fontsize=13,
+            fontweight="bold",
+        )
 
-        for ax, (name, df, user_col, item_col, color) in zip(axes, [
-            ("LibraryThing", df_lt, "user", "work", COLORS["lthing"]),
-            ("Epinions", df_ep, "user", "item", COLORS["epinions"]),
-        ]):
+        for ax, (name, df, user_col, item_col, color) in zip(
+            axes,
+            [
+                ("LibraryThing", df_lt, "user", "work", COLORS["lthing"]),
+                ("Epinions", df_ep, "user", "item", COLORS["epinions"]),
+            ],
+        ):
             u, i = df[user_col].value_counts(), df[item_col].value_counts()
             px, py = lorenz(u)
             ix, iy = lorenz(i)
-            ax.plot(px, py, color=color, linewidth=2, label=f"Users  (Gini={_gini(u.values):.3f})")
-            ax.plot(ix, iy, color=color, linewidth=2, linestyle="--", label=f"Items  (Gini={_gini(i.values):.3f})")
-            ax.plot([0, 1], [0, 1], "k--", linewidth=0.8, alpha=0.4, label="Perfect equality")
+            ax.plot(
+                px,
+                py,
+                color=color,
+                linewidth=2,
+                label=f"Users  (Gini={_gini(u.values):.3f})",
+            )
+            ax.plot(
+                ix,
+                iy,
+                color=color,
+                linewidth=2,
+                linestyle="--",
+                label=f"Items  (Gini={_gini(i.values):.3f})",
+            )
+            ax.plot(
+                [0, 1],
+                [0, 1],
+                "k--",
+                linewidth=0.8,
+                alpha=0.4,
+                label="Perfect equality",
+            )
             ax.fill_between(px, px, py, alpha=0.08, color=color)
             ax.set_title(name, fontweight="bold")
             ax.set_xlabel("Cumulative fraction of users / items")
@@ -331,13 +430,20 @@ def _plot_lorenz(df_lt: pd.DataFrame, df_ep: pd.DataFrame) -> None:
 
 
 def _write_comparison_table(
-    df_lt: pd.DataFrame, edges_lt: pd.DataFrame,
-    df_ep: pd.DataFrame, trust_ep: pd.DataFrame,
+    df_lt: pd.DataFrame,
+    edges_lt: pd.DataFrame,
+    df_ep: pd.DataFrame,
+    trust_ep: pd.DataFrame,
 ) -> None:
     """Side-by-side dataset comparison table for the report."""
+
     def stats(df, user_col, item_col, edges):
         counts, i_counts = df[user_col].value_counts(), df[item_col].value_counts()
-        social = set(edges["src"].unique()) if (not edges.empty and "src" in edges.columns) else set()
+        social = (
+            set(edges["src"].unique())
+            if (not edges.empty and "src" in edges.columns)
+            else set()
+        )
         cold_set = set(counts[counts <= 5].index)
         return {
             "Reviews": f"{len(df):,}",
@@ -349,7 +455,9 @@ def _write_comparison_table(
             "Median item ratings": f"{int(i_counts.median())}",
             "Users with <=5 ratings (%)": f"{100 * (counts <= 5).sum() / len(counts):.1f}",
             "Users in social graph (%)": f"{100 * len(social & set(df[user_col].unique())) / df[user_col].nunique():.1f}",
-            "Cold users w/ social (%)": f"{100 * len(cold_set & social) / len(cold_set):.1f}" if cold_set else "N/A",
+            "Cold users w/ social (%)": f"{100 * len(cold_set & social) / len(cold_set):.1f}"
+            if cold_set
+            else "N/A",
             "User Gini": f"{_gini(counts.values):.3f}",
             "Item Gini": f"{_gini(i_counts.values):.3f}",
             "Mean rating": f"{df['stars'].mean():.2f}",
@@ -366,11 +474,33 @@ def _write_comparison_table(
         f"| {'Metric':<28} | {'LibraryThing':^{col_w}} | {'Epinions':^{col_w}} |",
         "|" + "-" * 29 + "|" + "-" * (col_w + 2) + "|" + "-" * (col_w + 2) + "|",
         *[f"| {k:<28} | {lt_s[k]:^{col_w}} | {ep_s[k]:^{col_w}} |" for k in lt_s],
-        border, "",
+        border,
+        "",
         # "Notes:",
         # "  - High Gini (>0.7) => popularity bias => prefer BPR/WARP over MSE.",
         # "  - High cold users w/ social => SocialMF / TrustSVD likely beneficial.",
         # "  - Very low sparsity => MF needs strong regularisation or side info.",
+    ]
+
+    def _truncate(df: pd.DataFrame, max_chars: int = 30) -> pd.DataFrame:
+        out = df.head(2).copy()
+        for col in out.select_dtypes(include="object").columns:
+            out[col] = (
+                out[col]
+                .astype(str)
+                .apply(lambda x: x[:max_chars] + "..." if len(x) > max_chars else x)
+            )
+        return out
+
+    lt_head = _truncate(df_lt).T.to_string(header=False)
+    ep_head = _truncate(df_ep).T.to_string(header=False)
+    lines += [
+        "",
+        "--- LibraryThing head(2) ---",
+        lt_head,
+        "",
+        "--- Epinions head(2) ---",
+        ep_head,
     ]
     (OUTPUT_DIR / "dataset_comparison.txt").write_text("\n".join(lines) + "\n")
     for line in lines:
@@ -380,7 +510,13 @@ def _write_comparison_table(
 # -- Entry points --------------------------------------------------------------
 
 
-def eda(rebuild: bool = False) -> None:
+def eda(
+    df_lt: pd.DataFrame,
+    edges_lt: pd.DataFrame,
+    df_ep: pd.DataFrame,
+    trust_ep: pd.DataFrame,
+    rebuild: bool = False,
+) -> None:
     """Run EDA: cold start, social coverage, trust overlap, Lorenz curves, comparison table."""
     sentinel = OUTPUT_DIR / "eda_done.txt"
     if sentinel.exists() and not rebuild:
@@ -390,9 +526,6 @@ def eda(rebuild: bool = False) -> None:
         sentinel.unlink()
 
     logger.info("Running EDA...")
-    df_lt, edges_lt = _load_lthing()
-    df_ep, trust_ep = _load_epinions()
-
     _plot_cold_start(df_lt, df_ep)
     _plot_social_coverage(df_lt, edges_lt, df_ep, trust_ep)
     _plot_trust_overlap(df_ep, trust_ep)
@@ -407,9 +540,17 @@ def explore(rebuild: bool = False, rebuild_eda: bool | None = None) -> None:
     """Run basic stats and EDA for all datasets."""
     if rebuild_eda is None:
         rebuild_eda = rebuild
-    lthing_stats(rebuild=rebuild)
-    epinions_stats(rebuild=rebuild)
-    eda(rebuild=rebuild_eda)
+
+    need_lt = rebuild or not (OUTPUT_DIR / "lthing_stats.txt").exists()
+    need_ep = rebuild or not (OUTPUT_DIR / "epinions_stats.txt").exists()
+    need_eda = rebuild_eda or not (OUTPUT_DIR / "eda_done.txt").exists()
+
+    df_lt, edges_lt = _load_lthing() if (need_lt or need_eda) else (None, None)
+    df_ep, trust_ep = _load_epinions() if (need_ep or need_eda) else (None, None)
+
+    lthing_stats(df_lt, edges_lt, rebuild=rebuild)
+    epinions_stats(df_ep, trust_ep, rebuild=rebuild)
+    eda(df_lt, edges_lt, df_ep, trust_ep, rebuild=rebuild_eda)
 
 
 if __name__ == "__main__":
