@@ -25,12 +25,12 @@ def main():
     args = parser.parse_args()
 
     rebuild_download = args.rebuild in ("all", "download")
-    rebuild_exploration = args.rebuild in ("all", "exploration")
-    rebuild_eda = args.rebuild in ("all", "exploration", "eda")
-    rebuild_split = args.rebuild in ("all", "split")
-    rebuild_preprocess = args.rebuild in ("all", "preprocess")
-    rebuild_global_mean = args.rebuild in ("all", "global_mean")
-    rebuild_baseline = args.rebuild in ("all", "baseline")
+    rebuild_exploration = args.rebuild in ("all", "exploration") or rebuild_download
+    rebuild_eda = args.rebuild in ("all", "exploration", "eda") or rebuild_download
+    rebuild_split = args.rebuild in ("all", "split") or rebuild_download
+    rebuild_preprocess = args.rebuild in ("all", "preprocess") or rebuild_split
+    rebuild_global_mean = args.rebuild in ("all", "global_mean") or rebuild_preprocess
+    rebuild_baseline = args.rebuild in ("all", "baseline") or rebuild_preprocess
 
     logger.info("Getting raw data...")
     download(rebuild=rebuild_download)
