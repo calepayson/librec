@@ -482,7 +482,7 @@ def _write_comparison_table(
         # "  - Very low sparsity => MF needs strong regularisation or side info.",
     ]
 
-    def _truncate(df: pd.DataFrame, max_chars: int = 30) -> pd.DataFrame:
+    def _truncate(df: pd.DataFrame, max_chars: int = 60) -> pd.DataFrame:
         out = df.head(2).copy()
         for col in out.select_dtypes(include="object").columns:
             out[col] = (
