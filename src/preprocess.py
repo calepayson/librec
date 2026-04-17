@@ -97,6 +97,14 @@ def _preprocess_dataset(name: str, rebuild: bool) -> None:
         logger.info(f"Saved {path} ({len(df):,} rows, {list(df.columns)})")
 
 
+def load_preprocessed(name: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Load preprocessed train/val/test DataFrames for a dataset."""
+    train = pd.read_parquet(OUTPUT_DIR / "train" / f"{name}.parquet")
+    val = pd.read_parquet(OUTPUT_DIR / "val" / f"{name}.parquet")
+    test = pd.read_parquet(OUTPUT_DIR / "test" / f"{name}.parquet")
+    return train, val, test
+
+
 def preprocess(rebuild: bool = False) -> None:
     """Preprocess all datasets."""
     for name in DATASETS:
