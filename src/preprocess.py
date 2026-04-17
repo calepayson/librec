@@ -5,7 +5,8 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+SPLITS_DIR = Path(__file__).parent.parent / "data" / "splits"
+OUTPUT_DIR = Path(__file__).parent.parent / "data" / "preprocessed"
 DATASETS = ["lthing", "epinions"]
 TARGET = "stars"
 
@@ -66,10 +67,8 @@ def _add_time_features(
 
 def _preprocess_dataset(name: str, rebuild: bool) -> None:
     """Load split parquets, apply transforms, save preprocessed parquets."""
-    paths = [
-        DATA_DIR / f"{name}_{split}_preprocessed.parquet"
-        for split in ("train", "val", "test")
-    ]
+    splits = ("train", "val", "test")
+    paths = [OUTPUT_DIR / split / f"{name}.parquet" for split in splits]
 
     if rebuild:
         for p in paths:
@@ -80,11 +79,14 @@ def _preprocess_dataset(name: str, rebuild: bool) -> None:
         logger.info(f"{name} preprocessed data already exists.")
         return
 
+    for split in splits:
+        (OUTPUT_DIR / split).mkdir(parents=True, exist_ok=True)
+
     logger.info(f"Preprocessing {name}...")
     logger.info(f"Loading {name} split parquets...")
-    train = pd.read_parquet(DATA_DIR / f"{name}_train.parquet")
-    val = pd.read_parquet(DATA_DIR / f"{name}_val.parquet")
-    test = pd.read_parquet(DATA_DIR / f"{name}_test.parquet")
+    train = pd.read_parquet(SPLITS_DIR / f"{name}_train.parquet")
+    val = pd.read_parquet(SPLITS_DIR / f"{name}_val.parquet")
+    test = pd.read_parquet(SPLITS_DIR / f"{name}_test.parquet")
 
     train, val, test = _encode(train, val, test)
     train, val, test = _normalize(train, val, test)

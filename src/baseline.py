@@ -7,7 +7,9 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+DATA_DIR = Path(__file__).parent.parent / "data" / "preprocessed"
+OUTPUT_DIR = Path(__file__).parent.parent / "data" / "models"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 FEATURES = ["user_code", "item_code"]
 CATEGORICAL = ["user_code", "item_code"]
@@ -39,8 +41,12 @@ def _encode(
     for df in (train, val, test):
         encoded = pd.DataFrame(
             {
-                "user_code": pd.Categorical(df["user"], categories=user_cats).codes.astype("int32"),
-                "item_code": pd.Categorical(df["item"], categories=item_cats).codes.astype("int32"),
+                "user_code": pd.Categorical(
+                    df["user"], categories=user_cats
+                ).codes.astype("int32"),
+                "item_code": pd.Categorical(
+                    df["item"], categories=item_cats
+                ).codes.astype("int32"),
                 TARGET: df[TARGET].to_numpy(),
             }
         )
@@ -53,9 +59,9 @@ def _rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 def _train_and_evaluate(name: str, output_path: Path) -> None:
-    train = pd.read_parquet(DATA_DIR / f"{name}_train.parquet")
-    val = pd.read_parquet(DATA_DIR / f"{name}_val.parquet")
-    test = pd.read_parquet(DATA_DIR / f"{name}_test.parquet")
+    train = pd.read_parquet(DATA_DIR / "train" / f"{name}.parquet")
+    val = pd.read_parquet(DATA_DIR / "val" / f"{name}.parquet")
+    test = pd.read_parquet(DATA_DIR / "test" / f"{name}.parquet")
 
     train_enc, val_enc, test_enc = _encode(train, val, test)
 
@@ -76,7 +82,10 @@ def _train_and_evaluate(name: str, output_path: Path) -> None:
         num_boost_round=NUM_BOOST_ROUND,
         valid_sets=[train_set, val_set],
         valid_names=["train", "val"],
-        callbacks=[lgb.early_stopping(EARLY_STOPPING_ROUNDS), lgb.log_evaluation(LOG_EVERY)],
+        callbacks=[
+            lgb.early_stopping(EARLY_STOPPING_ROUNDS),
+            lgb.log_evaluation(LOG_EVERY),
+        ],
     )
 
     val_pred = model.predict(val_enc[FEATURES], num_iteration=model.best_iteration)
@@ -99,7 +108,7 @@ def _train_and_evaluate(name: str, output_path: Path) -> None:
 def lthing_baseline(rebuild: bool = False) -> None:
     """Train a LightGBM baseline on LibraryThing and report RMSE."""
     logger.info("Getting lthing baseline results...")
-    output_path = DATA_DIR / "lthing_baseline.txt"
+    output_path = OUTPUT_DIR / "lthing_baseline.txt"
 
     if rebuild and output_path.exists():
         output_path.unlink()
@@ -116,7 +125,7 @@ def lthing_baseline(rebuild: bool = False) -> None:
 def epinions_baseline(rebuild: bool = False) -> None:
     """Train a LightGBM baseline on Epinions and report RMSE."""
     logger.info("Getting epinions baseline results...")
-    output_path = DATA_DIR / "epinions_baseline.txt"
+    output_path = OUTPUT_DIR / "epinions_baseline.txt"
 
     if rebuild and output_path.exists():
         output_path.unlink()

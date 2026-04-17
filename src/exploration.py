@@ -10,7 +10,8 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).parent.parent / "data" / "raw"
-OUTPUT_DIR = Path(__file__).parent.parent / "data"
+OUTPUT_DIR = Path(__file__).parent.parent / "data" / "exploration"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 STYLE = {
     "figure.facecolor": "white",
