@@ -8,7 +8,8 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).parent.parent / "data" / "raw"
-OUTPUT_DIR = Path(__file__).parent.parent / "data"
+OUTPUT_DIR = Path(__file__).parent.parent / "data" / "splits"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 TRAIN_FRAC = 0.8
 VAL_FRAC = 0.1
@@ -22,7 +23,9 @@ def _split_paths(name: str) -> dict[str, Path]:
     }
 
 
-def _temporal_split(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def _temporal_split(
+    df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Sort by time and split into train/val/test using TRAIN_FRAC / VAL_FRAC."""
     df = df.sort_values("time", kind="stable").reset_index(drop=True)
     n = len(df)
@@ -31,7 +34,9 @@ def _temporal_split(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.Da
     return df.iloc[:train_end], df.iloc[train_end:val_end], df.iloc[val_end:]
 
 
-def _write_splits(name: str, train: pd.DataFrame, val: pd.DataFrame, test: pd.DataFrame) -> None:
+def _write_splits(
+    name: str, train: pd.DataFrame, val: pd.DataFrame, test: pd.DataFrame
+) -> None:
     paths = _split_paths(name)
     train.to_parquet(paths["train"], index=False)
     val.to_parquet(paths["val"], index=False)

@@ -6,7 +6,9 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+DATA_DIR = Path(__file__).parent.parent / "data" / "preprocessed"
+OUTPUT_DIR = Path(__file__).parent.parent / "data" / "models"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 TARGET = "stars"
 
@@ -16,9 +18,9 @@ def _rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 def _train_and_evaluate(name: str, output_path: Path) -> None:
-    train = pd.read_parquet(DATA_DIR / f"{name}_train.parquet")
-    val = pd.read_parquet(DATA_DIR / f"{name}_val.parquet")
-    test = pd.read_parquet(DATA_DIR / f"{name}_test.parquet")
+    train = pd.read_parquet(DATA_DIR / "train" / f"{name}.parquet")
+    val = pd.read_parquet(DATA_DIR / "val" / f"{name}.parquet")
+    test = pd.read_parquet(DATA_DIR / "test" / f"{name}.parquet")
 
     logger.info(f"Computing global mean on {name}...")
     global_mean = float(train[TARGET].mean())
@@ -40,7 +42,7 @@ def _train_and_evaluate(name: str, output_path: Path) -> None:
 def lthing_global_mean(rebuild: bool = False) -> None:
     """Compute the global-mean baseline on LibraryThing and report RMSE."""
     logger.info("Getting lthing global-mean baseline results...")
-    output_path = DATA_DIR / "lthing_global_mean.txt"
+    output_path = OUTPUT_DIR / "lthing_global_mean.txt"
 
     if rebuild and output_path.exists():
         output_path.unlink()
@@ -57,7 +59,7 @@ def lthing_global_mean(rebuild: bool = False) -> None:
 def epinions_global_mean(rebuild: bool = False) -> None:
     """Compute the global-mean baseline on Epinions and report RMSE."""
     logger.info("Getting epinions global-mean baseline results...")
-    output_path = DATA_DIR / "epinions_global_mean.txt"
+    output_path = OUTPUT_DIR / "epinions_global_mean.txt"
 
     if rebuild and output_path.exists():
         output_path.unlink()

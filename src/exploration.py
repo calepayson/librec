@@ -10,7 +10,8 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).parent.parent / "data" / "raw"
-OUTPUT_DIR = Path(__file__).parent.parent / "data"
+OUTPUT_DIR = Path(__file__).parent.parent / "data" / "exploration"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 STYLE = {
     "figure.facecolor": "white",
@@ -110,8 +111,11 @@ def _load_epinions() -> tuple[pd.DataFrame, pd.DataFrame]:
 def lthing_stats(df: pd.DataFrame, edges: pd.DataFrame, rebuild: bool = False) -> None:
     """Write summary statistics for the LibraryThing dataset to a file."""
     output_path = OUTPUT_DIR / "lthing_stats.txt"
-    if rebuild and output_path.exists():
-        output_path.unlink()
+    plot_path = OUTPUT_DIR / "lthing_ratings.png"
+    if rebuild:
+        for p in (output_path, plot_path):
+            if p.exists():
+                p.unlink()
     if output_path.exists():
         logger.info("lthing stats already computed.")
         for line in output_path.read_text().splitlines():
@@ -149,8 +153,11 @@ def epinions_stats(
 ) -> None:
     """Write summary statistics for the Epinions dataset to a file."""
     output_path = OUTPUT_DIR / "epinions_stats.txt"
-    if rebuild and output_path.exists():
-        output_path.unlink()
+    plot_path = OUTPUT_DIR / "epinions_ratings.png"
+    if rebuild:
+        for p in (output_path, plot_path):
+            if p.exists():
+                p.unlink()
     if output_path.exists():
         logger.info("Epinions stats already computed.")
         for line in output_path.read_text().splitlines():
@@ -519,11 +526,21 @@ def eda(
 ) -> None:
     """Run EDA: cold start, social coverage, trust overlap, Lorenz curves, comparison table."""
     sentinel = OUTPUT_DIR / "eda_done.txt"
+    eda_artifacts = [
+        OUTPUT_DIR / "cold_start_severity.png",
+        OUTPUT_DIR / "social_coverage_cold_users.png",
+        OUTPUT_DIR / "epinions_trust_rating_overlap.png",
+        OUTPUT_DIR / "lorenz_curves.png",
+        OUTPUT_DIR / "dataset_comparison.txt",
+        sentinel,
+    ]
     if sentinel.exists() and not rebuild:
         logger.info("EDA already computed. Skipping.")
         return
-    if rebuild and sentinel.exists():
-        sentinel.unlink()
+    if rebuild:
+        for p in eda_artifacts:
+            if p.exists():
+                p.unlink()
 
     logger.info("Running EDA...")
     _plot_cold_start(df_lt, df_ep)
