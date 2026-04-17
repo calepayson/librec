@@ -1,15 +1,20 @@
 import argparse
 import logging
 
-from baseline import baseline
+from baseline import LightGBMBaseline
 from download import download
 from exploration import explore
-from global_mean import global_mean
-from preprocess import preprocess
+from global_mean import GlobalMean
+from preprocess import DATASETS, load_preprocessed, preprocess
 from split import split
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+MODELS = [
+    GlobalMean(),
+    LightGBMBaseline(),
+]
 
 
 def main():
@@ -20,7 +25,7 @@ def main():
         nargs="?",
         const="all",
         metavar="STEP",
-        help="Rebuild resources. Optionally specify a step: download, exploration, eda, split, preprocess, global_mean, baseline (default: all)",
+        help="Rebuild resources. Optionally specify a step: download, exploration, eda, split, preprocess, models (default: all)",
     )
     args = parser.parse_args()
 
@@ -29,8 +34,7 @@ def main():
     rebuild_eda = args.rebuild in ("all", "exploration", "eda") or rebuild_download
     rebuild_split = args.rebuild in ("all", "split") or rebuild_download
     rebuild_preprocess = args.rebuild in ("all", "preprocess") or rebuild_split
-    rebuild_global_mean = args.rebuild in ("all", "global_mean") or rebuild_preprocess
-    rebuild_baseline = args.rebuild in ("all", "baseline") or rebuild_preprocess
+    rebuild_models = args.rebuild in ("all", "models") or rebuild_preprocess
 
     logger.info("Getting raw data...")
     download(rebuild=rebuild_download)
@@ -44,11 +48,11 @@ def main():
     logger.info("Preprocessing data...")
     preprocess(rebuild=rebuild_preprocess)
 
-    logger.info("Computing global-mean baselines...")
-    global_mean(rebuild=rebuild_global_mean)
-
-    logger.info("Training LightGBM baselines...")
-    baseline(rebuild=rebuild_baseline)
+    logger.info("Running models...")
+    for dataset in DATASETS:
+        train, val, test = load_preprocessed(dataset)
+        for model in MODELS:
+            model.evaluate(dataset, train, val, test, rebuild=rebuild_models)
 
 
 if __name__ == "__main__":
