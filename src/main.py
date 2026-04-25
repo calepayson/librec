@@ -65,7 +65,7 @@ def main():
         all_results.append(results)
 
     logger.info("Generating plots...")
-    plot(rebuild=rebuild_plots)
+    plot(args.dataset, rebuild=rebuild_plots)
 
     return all_results
 

@@ -35,28 +35,30 @@ def _savefig(path: Path) -> None:
     plt.close()
 
 
-def _load_evals() -> pd.DataFrame:
-    csvs = sorted(EVAL_DIR.glob("*.csv"))
+def _load_evals(dataset: str) -> pd.DataFrame:
+    csvs = sorted(EVAL_DIR.glob(f"{dataset}_*.csv"))
     if not csvs:
-        logger.warning("No eval CSVs found in %s", EVAL_DIR)
+        logger.warning("No eval CSVs found for %s in %s", dataset, EVAL_DIR)
         return pd.DataFrame()
     return pd.concat([pd.read_csv(f) for f in csvs], ignore_index=True)
 
 
-def _plot_single_metric(df: pd.DataFrame, metric: str) -> None:
-    path = PLOT_DIR / f"{metric}.png"
+def _plot_single_metric(df: pd.DataFrame, metric: str, dataset: str) -> None:
+    path = PLOT_DIR / f"{dataset}_{metric}.png"
     with plt.rc_context(STYLE):
         fig, ax = plt.subplots(figsize=(8, 5))
         bars = ax.bar(df["model"], df[metric], color="#4C72B0", alpha=0.9)
         ax.bar_label(bars, fmt="%.4f", padding=3, fontsize=9)
         ax.set_ylabel(metric)
-        ax.set_title(metric, fontweight="bold")
+        ax.set_title(f"{dataset} — {metric}", fontweight="bold")
         fig.tight_layout()
         _savefig(path)
 
 
-def _plot_grouped(df: pd.DataFrame, metrics: list[str], name: str) -> None:
-    path = PLOT_DIR / f"{name}.png"
+def _plot_grouped(
+    df: pd.DataFrame, metrics: list[str], dataset: str, name: str
+) -> None:
+    path = PLOT_DIR / f"{dataset}_{name}.png"
     present = [m for m in metrics if m in df.columns]
     if not present:
         return
@@ -71,37 +73,41 @@ def _plot_grouped(df: pd.DataFrame, metrics: list[str], name: str) -> None:
             ax.set_ylabel(metric)
             ax.set_title(metric, fontweight="bold")
             ax.tick_params(axis="x", rotation=45)
-        fig.suptitle(name.replace("_", " ").title(), fontsize=14, fontweight="bold")
+        fig.suptitle(
+            f"{dataset} — {name.replace('_', ' ').title()}",
+            fontsize=14,
+            fontweight="bold",
+        )
         fig.tight_layout()
         _savefig(path)
 
 
-def plot(rebuild: bool = False) -> None:
-    sentinel = PLOT_DIR / "plots_done.txt"
+def plot(dataset: str, rebuild: bool = False) -> None:
+    sentinel = PLOT_DIR / f"{dataset}_plots_done.txt"
 
     if rebuild and sentinel.exists():
-        for p in PLOT_DIR.glob("*.png"):
+        for p in PLOT_DIR.glob(f"{dataset}_*.png"):
             p.unlink()
         sentinel.unlink()
 
     if sentinel.exists():
-        logger.info("Plots already generated.")
+        logger.info("Plots for %s already generated.", dataset)
         return
 
-    df = _load_evals()
+    df = _load_evals(dataset)
     if df.empty:
         return
 
     for metric in RATING_METRICS + RANKING_METRICS:
         if metric in df.columns:
-            _plot_single_metric(df, metric)
-            logger.info(f"  Saved {metric}.png")
+            _plot_single_metric(df, metric, dataset)
+            logger.info(f"  Saved {dataset}_{metric}.png")
 
-    _plot_grouped(df, RATING_METRICS, "rating_metrics")
-    logger.info("  Saved rating_metrics.png")
+    _plot_grouped(df, RATING_METRICS, dataset, "rating_metrics")
+    logger.info(f"  Saved {dataset}_rating_metrics.png")
 
-    _plot_grouped(df, RANKING_METRICS, "ranking_metrics")
-    logger.info("  Saved ranking_metrics.png")
+    _plot_grouped(df, RANKING_METRICS, dataset, "ranking_metrics")
+    logger.info(f"  Saved {dataset}_ranking_metrics.png")
 
     sentinel.write_text("done\n")
-    logger.info("All plots saved to %s", PLOT_DIR)
+    logger.info("All plots for %s saved to %s", dataset, PLOT_DIR)
