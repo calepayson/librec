@@ -50,7 +50,7 @@ def main():
     explore(rebuild=rebuild_exploration, rebuild_eda=rebuild_eda)
 
     logger.info("Building train/val/test splits...")
-    split(rebuild=rebuild_split)
+    split(args.dataset, rebuild=rebuild_split)
 
     logger.info("Preprocessing data...")
     preprocess(rebuild=rebuild_preprocess)
