@@ -47,7 +47,7 @@ def main():
     download(args.dataset, rebuild=rebuild_download)
 
     logger.info("Starting exploration...")
-    explore(rebuild=rebuild_exploration, rebuild_eda=rebuild_eda)
+    explore(args.dataset, rebuild=rebuild_exploration, rebuild_eda=rebuild_eda)
 
     logger.info("Building train/val/test splits...")
     split(args.dataset, rebuild=rebuild_split)
