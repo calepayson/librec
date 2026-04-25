@@ -44,7 +44,7 @@ def main():
     rebuild_models = args.rebuild in ("all", "models") or rebuild_preprocess
 
     logger.info("Getting raw data...")
-    download(rebuild=rebuild_download)
+    download(args.dataset, rebuild=rebuild_download)
 
     logger.info("Starting exploration...")
     explore(rebuild=rebuild_exploration, rebuild_eda=rebuild_eda)
