@@ -53,7 +53,7 @@ def main():
     split(args.dataset, rebuild=rebuild_split)
 
     logger.info("Preprocessing data...")
-    preprocess(rebuild=rebuild_preprocess)
+    preprocess(args.dataset, rebuild=rebuild_preprocess)
 
     logger.info("Running models...")
     all_results = []
