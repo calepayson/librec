@@ -105,10 +105,9 @@ def load_preprocessed(name: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFra
     return train, val, test
 
 
-def preprocess(rebuild: bool = False) -> None:
-    """Preprocess all datasets."""
-    for name in DATASETS:
-        _preprocess_dataset(name, rebuild)
+def preprocess(dataset: str, rebuild: bool = False) -> None:
+    """Preprocess the specified dataset."""
+    _preprocess_dataset(dataset, rebuild)
 
 
 if __name__ == "__main__":
