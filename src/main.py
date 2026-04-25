@@ -5,6 +5,7 @@ from baseline import LightGBMBaseline
 from download import download
 from exploration import explore
 from global_mean import GlobalMean
+from ncf import NCF
 from plot import plot
 from preprocess import DATASETS, load_preprocessed, preprocess
 from split import split
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 MODELS = [
     GlobalMean(),
     LightGBMBaseline(),
+    NCF(),
 ]
 
 
@@ -44,6 +46,22 @@ def main():
     rebuild_preprocess = args.rebuild in ("all", "preprocess") or rebuild_split
     rebuild_models = args.rebuild in ("all", "models") or rebuild_preprocess
     rebuild_plots = args.rebuild in ("all", "plots") or rebuild_models
+    model_names_to_rebuild = (
+        {args.rebuild}
+        if args.rebuild
+        not in (
+            None,
+            "all",
+            "download",
+            "exploration",
+            "eda",
+            "split",
+            "preprocess",
+            "models",
+            "plots",
+        )
+        else set()
+    )
 
     logger.info("Getting raw data...")
     download(args.dataset, rebuild=rebuild_download)
@@ -61,7 +79,8 @@ def main():
     all_results = []
     train, val, test = load_preprocessed(args.dataset)
     for model in MODELS:
-        results = model.evaluate(args.dataset, train, val, test, rebuild=rebuild_models)
+        rebuild = rebuild_models or model.name in model_names_to_rebuild
+        results = model.evaluate(args.dataset, train, val, test, rebuild=rebuild)
         all_results.append(results)
 
     logger.info("Generating plots...")
