@@ -7,8 +7,8 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-OUTPUT_DIR = Path(__file__).parent.parent / "data" / "models"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+EVAL_DIR = Path(__file__).parent.parent / "data" / "evals"
+EVAL_DIR.mkdir(parents=True, exist_ok=True)
 
 TARGET = "stars"
 RELEVANCE_THRESHOLD = 4.0
@@ -78,16 +78,17 @@ class BaseModel(ABC):
         test: pd.DataFrame,
         rebuild: bool = False,
     ) -> dict:
-        output_path = OUTPUT_DIR / f"{dataset}_{self.name}.txt"
+        output_path = EVAL_DIR / f"{self.name}.csv"
 
         if rebuild and output_path.exists():
             output_path.unlink()
 
         if output_path.exists():
             logger.info(f"{dataset} {self.name} already computed.")
-            for line in output_path.read_text().splitlines():
-                logger.info(line)
-            return {}
+            results = pd.read_csv(output_path).iloc[0].to_dict()
+            for key, value in results.items():
+                logger.info(f"  {key}: {value}")
+            return results
 
         logger.info(f"Fitting {self.name} on {dataset}...")
         self.fit(train, val)
@@ -110,14 +111,11 @@ class BaseModel(ABC):
             {f"test_{k}": v for k, v in _ranking_metrics(test, test_pred).items()}
         )
 
-        lines = [f"=== {dataset} {self.name} ==="]
+        pd.DataFrame([results]).to_csv(output_path, index=False)
+
         for key, value in results.items():
             if key in ("dataset", "model"):
                 continue
-            lines.append(f"  {key}: {value:.4f}")
-
-        output_path.write_text("\n".join(lines) + "\n")
-        for line in lines:
-            logger.info(line)
+            logger.info(f"  {key}: {value:.4f}")
 
         return results

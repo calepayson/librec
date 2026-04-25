@@ -49,10 +49,12 @@ def main():
     preprocess(rebuild=rebuild_preprocess)
 
     logger.info("Running models...")
+    all_results = []
     for dataset in DATASETS:
         train, val, test = load_preprocessed(dataset)
         for model in MODELS:
-            model.evaluate(dataset, train, val, test, rebuild=rebuild_models)
+            results = model.evaluate(dataset, train, val, test, rebuild=rebuild_models)
+            all_results.append(results)
 
 
 if __name__ == "__main__":
