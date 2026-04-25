@@ -5,6 +5,7 @@ from baseline import LightGBMBaseline
 from download import download
 from exploration import explore
 from global_mean import GlobalMean
+from plot import plot
 from preprocess import DATASETS, load_preprocessed, preprocess
 from split import split
 
@@ -25,7 +26,7 @@ def main():
         nargs="?",
         const="all",
         metavar="STEP",
-        help="Rebuild resources. Optionally specify a step: download, exploration, eda, split, preprocess, models (default: all)",
+        help="Rebuild resources. Optionally specify a step: download, exploration, eda, split, preprocess, models, plots (default: all)",
     )
     args = parser.parse_args()
 
@@ -35,6 +36,7 @@ def main():
     rebuild_split = args.rebuild in ("all", "split") or rebuild_download
     rebuild_preprocess = args.rebuild in ("all", "preprocess") or rebuild_split
     rebuild_models = args.rebuild in ("all", "models") or rebuild_preprocess
+    rebuild_plots = args.rebuild in ("all", "plots") or rebuild_models
 
     logger.info("Getting raw data...")
     download(rebuild=rebuild_download)
@@ -55,6 +57,11 @@ def main():
         for model in MODELS:
             results = model.evaluate(dataset, train, val, test, rebuild=rebuild_models)
             all_results.append(results)
+
+    logger.info("Generating plots...")
+    plot(rebuild=rebuild_plots)
+
+    return all_results
 
 
 if __name__ == "__main__":
