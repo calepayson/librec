@@ -553,21 +553,33 @@ def eda(
     logger.info("EDA complete.")
 
 
-def explore(rebuild: bool = False, rebuild_eda: bool | None = None) -> None:
-    """Run basic stats and EDA for all datasets."""
+def explore(
+    dataset: str, rebuild: bool = False, rebuild_eda: bool | None = None
+) -> None:
+    """Run basic stats for the specified dataset. Run EDA if both datasets are available."""
     if rebuild_eda is None:
         rebuild_eda = rebuild
 
-    need_lt = rebuild or not (OUTPUT_DIR / "lthing_stats.txt").exists()
-    need_ep = rebuild or not (OUTPUT_DIR / "epinions_stats.txt").exists()
+    if dataset == "lthing":
+        need_stats = rebuild or not (OUTPUT_DIR / "lthing_stats.txt").exists()
+        df, edges = _load_lthing() if need_stats else (None, None)
+        lthing_stats(df, edges, rebuild=rebuild)
+    elif dataset == "epinions":
+        need_stats = rebuild or not (OUTPUT_DIR / "epinions_stats.txt").exists()
+        df, edges = _load_epinions() if need_stats else (None, None)
+        epinions_stats(df, edges, rebuild=rebuild)
+
+    both_available = (DATA_DIR / "lthing_data").exists() and (
+        DATA_DIR / "epinions_data"
+    ).exists()
     need_eda = rebuild_eda or not (OUTPUT_DIR / "eda_done.txt").exists()
 
-    df_lt, edges_lt = _load_lthing() if (need_lt or need_eda) else (None, None)
-    df_ep, trust_ep = _load_epinions() if (need_ep or need_eda) else (None, None)
-
-    lthing_stats(df_lt, edges_lt, rebuild=rebuild)
-    epinions_stats(df_ep, trust_ep, rebuild=rebuild)
-    eda(df_lt, edges_lt, df_ep, trust_ep, rebuild=rebuild_eda)
+    if both_available and need_eda:
+        df_lt, edges_lt = _load_lthing()
+        df_ep, trust_ep = _load_epinions()
+        eda(df_lt, edges_lt, df_ep, trust_ep, rebuild=rebuild_eda)
+    elif not both_available and need_eda:
+        logger.info("Skipping EDA (requires both datasets to be downloaded)")
 
 
 if __name__ == "__main__":

@@ -27,6 +27,13 @@ def main():
         metavar="STEP",
         help="Rebuild resources. Optionally specify a step: download, exploration, eda, split, preprocess, models (default: all)",
     )
+    parser.add_argument(
+        "-d",
+        "--dataset",
+        default="lthing",
+        choices=DATASETS,
+        help="Dataset to evaluate (default: lthing)",
+    )
     args = parser.parse_args()
 
     rebuild_download = args.rebuild in ("all", "download")
@@ -37,24 +44,23 @@ def main():
     rebuild_models = args.rebuild in ("all", "models") or rebuild_preprocess
 
     logger.info("Getting raw data...")
-    download(rebuild=rebuild_download)
+    download(args.dataset, rebuild=rebuild_download)
 
     logger.info("Starting exploration...")
-    explore(rebuild=rebuild_exploration, rebuild_eda=rebuild_eda)
+    explore(args.dataset, rebuild=rebuild_exploration, rebuild_eda=rebuild_eda)
 
     logger.info("Building train/val/test splits...")
-    split(rebuild=rebuild_split)
+    split(args.dataset, rebuild=rebuild_split)
 
     logger.info("Preprocessing data...")
-    preprocess(rebuild=rebuild_preprocess)
+    preprocess(args.dataset, rebuild=rebuild_preprocess)
 
     logger.info("Running models...")
     all_results = []
-    for dataset in DATASETS:
-        train, val, test = load_preprocessed(dataset)
-        for model in MODELS:
-            results = model.evaluate(dataset, train, val, test, rebuild=rebuild_models)
-            all_results.append(results)
+    train, val, test = load_preprocessed(args.dataset)
+    for model in MODELS:
+        results = model.evaluate(args.dataset, train, val, test, rebuild=rebuild_models)
+        all_results.append(results)
 
 
 if __name__ == "__main__":

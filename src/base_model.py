@@ -78,7 +78,7 @@ class BaseModel(ABC):
         test: pd.DataFrame,
         rebuild: bool = False,
     ) -> dict:
-        output_path = EVAL_DIR / f"{self.name}.csv"
+        output_path = EVAL_DIR / f"{dataset}_{self.name}.csv"
 
         if rebuild and output_path.exists():
             output_path.unlink()

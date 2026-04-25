@@ -130,10 +130,12 @@ def epinions_split(rebuild: bool = False) -> None:
     _write_splits("epinions", train, val, test)
 
 
-def split(rebuild: bool = False) -> None:
-    """Write train/val/test parquet files for all datasets."""
-    lthing_split(rebuild=rebuild)
-    epinions_split(rebuild=rebuild)
+def split(dataset: str, rebuild: bool = False) -> None:
+    """Write train/val/test parquet files for the specified dataset."""
+    if dataset == "lthing":
+        lthing_split(rebuild=rebuild)
+    elif dataset == "epinions":
+        epinions_split(rebuild=rebuild)
 
 
 if __name__ == "__main__":
