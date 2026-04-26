@@ -21,7 +21,8 @@ LGB_PARAMS = {
     "feature_fraction": 0.9,
     "bagging_fraction": 0.9,
     "bagging_freq": 5,
-    "verbosity": 1,
+    "verbosity": -1,
+    "force_col_wise": True,
 }
 LOG_EVERY = 10
 NUM_BOOST_ROUND = 500

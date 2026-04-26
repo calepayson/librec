@@ -1,11 +1,16 @@
 import argparse
 import logging
+import random
+
+import numpy as np
+import torch
 
 from baseline import LightGBMBaseline
 from download import download
 from exploration import explore
 from global_mean import GlobalMean
 from ncf import NCF
+from social_ncf import SocialNCF
 from plot import plot
 from preprocess import DATASETS, load_preprocessed, preprocess
 from split import split
@@ -13,10 +18,17 @@ from split import split
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed_all(SEED)
+
 MODELS = [
     GlobalMean(),
     LightGBMBaseline(),
     NCF(),
+    SocialNCF(),
 ]
 
 
