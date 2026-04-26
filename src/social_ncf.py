@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import pandas as pd
 
-from ncf import NCF, _NeuMF, LR, WEIGHT_DECAY, EPOCHS, EARLY_STOPPING
+from ncf import NCF, _NeuMF, LR, EPOCHS, EARLY_STOPPING
 from base_model import _rmse, TARGET
 from preprocess import load_trust_graph
 
@@ -35,9 +35,7 @@ class SocialNCF(NCF):
         self._n_items = train["item_code"].max() + 1
 
         self._model = _NeuMF(self._n_users, self._n_items).to(self._device)
-        optimizer = torch.optim.AdamW(
-            self._model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY
-        )
+        optimizer = torch.optim.Adam(self._model.parameters(), lr=LR)
         loss_fn = torch.nn.MSELoss()
 
         self._trust_df = load_trust_graph(self._dataset)
