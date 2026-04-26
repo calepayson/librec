@@ -19,14 +19,27 @@ TRUST_FILES = {
 def _encode(
     train: pd.DataFrame, val: pd.DataFrame, test: pd.DataFrame
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
-    """Add user_code/item_code columns using train-set vocabulary. Unseen -> -1."""
+    """Add user_code/item_code columns.
+
+    Train users get codes 0..n_train-1. Val/test-only users get codes
+    n_train..n_all-1 so they can be linked via the trust graph even though
+    they have no trained embeddings. Items remain train-only (unseen -> -1).
+    """
     logger.info("Encoding user/item IDs to integers...")
-    user_cats = train["user"].astype("category").cat.categories
+    train_user_cats = train["user"].astype("category").cat.categories
+    user_to_code = {u: i for i, u in enumerate(train_user_cats)}
+
+    next_code = len(train_user_cats)
+    for u in pd.concat([val["user"], test["user"]]).unique():
+        if u not in user_to_code:
+            user_to_code[u] = next_code
+            next_code += 1
+
     item_cats = train["item"].astype("category").cat.categories
-    user_to_code = {u: i for i, u in enumerate(user_cats)}
     item_to_code = {it: i for i, it in enumerate(item_cats)}
     logger.info(
-        f"  {len(user_to_code):,} users, {len(item_to_code):,} items in vocabulary"
+        f"  {len(train_user_cats):,} train users, {next_code:,} total users, "
+        f"{len(item_to_code):,} items in vocabulary"
     )
     out = []
     for df in (train, val, test):

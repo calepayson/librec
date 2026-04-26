@@ -43,12 +43,19 @@ def _load_evals(dataset: str) -> pd.DataFrame:
     return pd.concat([pd.read_csv(f) for f in csvs], ignore_index=True)
 
 
+def _auto_ylim(values, pad_frac=0.15):
+    lo, hi = values.min(), values.max()
+    span = hi - lo if hi > lo else hi * 0.1
+    return lo - span * pad_frac, hi + span * pad_frac
+
+
 def _plot_single_metric(df: pd.DataFrame, metric: str, dataset: str) -> None:
     path = PLOT_DIR / f"{dataset}_{metric}.png"
     with plt.rc_context(STYLE):
         fig, ax = plt.subplots(figsize=(8, 5))
         bars = ax.bar(df["model"], df[metric], color="#4C72B0", alpha=0.9)
         ax.bar_label(bars, fmt="%.4f", padding=3, fontsize=9)
+        ax.set_ylim(_auto_ylim(df[metric]))
         ax.set_ylabel(metric)
         ax.set_title(f"{dataset} — {metric}", fontweight="bold")
         fig.tight_layout()
@@ -70,6 +77,7 @@ def _plot_grouped(
         for ax, metric in zip(axes, present):
             bars = ax.bar(df["model"], df[metric], color="#4C72B0", alpha=0.9)
             ax.bar_label(bars, fmt="%.4f", padding=3, fontsize=9)
+            ax.set_ylim(_auto_ylim(df[metric]))
             ax.set_ylabel(metric)
             ax.set_title(metric, fontweight="bold")
             ax.tick_params(axis="x", rotation=45)
