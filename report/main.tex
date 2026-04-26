@@ -1,0 +1,240 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{multirow}
+
+\title{Social-Aware Hybrid Recommender Systems:\\A Comparative Study on LibraryThing and Epinions}
+
+\author{
+  \IEEEauthorblockN{Cale Smith, Advait Shinde, Jasper Morgal}
+  \IEEEauthorblockA{Department of Computer Engineering\\
+  San Jose State University\\
+  San Jose, CA, USA\\
+  \{cale.smith, advait.shinde, jasper.morgal\}@sjsu.edu}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+TODO
+\end{abstract}
+
+\begin{IEEEkeywords}
+recommender systems, collaborative filtering, neural collaborative filtering, social regularization, LibraryThing, Epinions
+\end{IEEEkeywords}
+
+\section{Introduction}
+\label{sec:intro}
+
+TODO
+
+\section{Dataset Analysis}
+\label{sec:data}
+
+\begin{table}[htbp]
+\caption{Dataset Statistics}
+\label{tab:datasets}
+\centering
+\begin{tabular}{lrr}
+\toprule
+\textbf{Metric} & \textbf{LibraryThing} & \textbf{Epinions} \\
+\midrule
+Reviews          & 1,707,070 & 189,083 \\
+Users            & 83,195    & 115,842 \\
+Items            & 506,165   & 41,764  \\
+Social edges     & 219,790   & 691,784 \\
+Sparsity (\%)    & 0.0041    & 0.0039  \\
+Users $\leq$5 ratings (\%) & 62.0 & 96.9 \\
+Users in social graph (\%) & 30.8 & 12.6 \\
+Cold users w/ social (\%)  & 21.5 & 11.2 \\
+User Gini        & 0.809     & 0.340   \\
+Item Gini        & 0.632     & 0.606   \\
+Mean rating      & 3.81      & 3.63    \\
+Rating std       & 1.00      & 1.50    \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+TODO
+
+\section{Shared Pipeline and Baselines}
+\label{sec:pipeline}
+
+\subsection{Preprocessing}
+
+TODO
+
+\subsection{Evaluation Framework}
+
+TODO
+
+\subsection{Baseline: Global Mean}
+
+TODO
+
+\subsection{Baseline: LightGBM}
+
+TODO
+
+\section{Related Work}
+\label{sec:related}
+
+TODO
+
+\section{Variant A: Neural Collaborative Filtering}
+\label{sec:variant-a}
+
+\subsection{Design and Motivation}
+
+TODO
+
+\subsection{Implementation Details}
+
+TODO
+
+\subsection{Design Decision Log}
+
+\begin{table}[htbp]
+\caption{Variant A --- Key Design Decisions}
+\label{tab:decisions-a}
+\centering
+\begin{tabular}{p{1.8cm}p{2.2cm}p{1.5cm}p{1.5cm}}
+\toprule
+\textbf{Choice} & \textbf{Selected} & \textbf{Alternatives} & \textbf{Rationale} \\
+\midrule
+Architecture & NeuMF (GMF+MLP) & GMF only, MLP only & TODO \\
+Embedding dim & 128 & 64, 256 & TODO \\
+Learning rate & 0.0005 & 0.001, 0.0001 & TODO \\
+Loss function & MSE & BPR, BCE & TODO \\
+Cold-start & Global mean fallback & Drop, user mean & TODO \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Results and Analysis}
+
+TODO
+
+\section{Variant B: [Method Name]}
+\label{sec:variant-b}
+
+\subsection{Design and Motivation}
+
+TODO
+
+\subsection{Implementation Details}
+
+TODO
+
+\subsection{Design Decision Log}
+
+\begin{table}[htbp]
+\caption{Variant B --- Key Design Decisions}
+\label{tab:decisions-b}
+\centering
+\begin{tabular}{p{1.8cm}p{2.2cm}p{1.5cm}p{1.5cm}}
+\toprule
+\textbf{Choice} & \textbf{Selected} & \textbf{Alternatives} & \textbf{Rationale} \\
+\midrule
+TODO & TODO & TODO & TODO \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Results and Analysis}
+
+TODO
+
+\section{Variant C: [Method Name]}
+\label{sec:variant-c}
+
+\subsection{Design and Motivation}
+
+TODO
+
+\subsection{Implementation Details}
+
+TODO
+
+\subsection{Design Decision Log}
+
+\begin{table}[htbp]
+\caption{Variant C --- Key Design Decisions}
+\label{tab:decisions-c}
+\centering
+\begin{tabular}{p{1.8cm}p{2.2cm}p{1.5cm}p{1.5cm}}
+\toprule
+\textbf{Choice} & \textbf{Selected} & \textbf{Alternatives} & \textbf{Rationale} \\
+\midrule
+TODO & TODO & TODO & TODO \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Results and Analysis}
+
+TODO
+
+\section{Comparative Analysis and Discussion}
+\label{sec:comparison}
+
+\begin{table*}[htbp]
+\caption{Performance Comparison Across All Models (LibraryThing)}
+\label{tab:results-lthing}
+\centering
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Model} & \textbf{Val RMSE} & \textbf{Test RMSE} & \textbf{Test MAE} & \textbf{P@10} & \textbf{R@10} & \textbf{NDCG@10} \\
+\midrule
+Global Mean      & 0.9956 & 0.9945 & 0.7852 & 0.2843 & 0.7257 & 0.6980 \\
+LightGBM         & 0.9551 & 0.9690 & 0.7510 & 0.2920 & 0.7308 & 0.7192 \\
+NCF              & 0.9760 & 0.9858 & 0.7759 & 0.2930 & 0.7311 & 0.7195 \\
+Variant B        & TODO   & TODO   & TODO   & TODO   & TODO   & TODO   \\
+Variant C        & TODO   & TODO   & TODO   & TODO   & TODO   & TODO   \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\subsection{Rating Prediction}
+
+TODO
+
+\subsection{Ranking Quality}
+
+TODO
+
+\subsection{Effect of Social Information}
+
+TODO
+
+\subsection{Ablation Studies}
+
+TODO
+
+\section{Individual Reflections}
+\label{sec:reflections}
+
+\subsection{Cale Smith}
+TODO
+
+\subsection{Advait Shinde}
+TODO
+
+\subsection{Jasper Morgal}
+TODO
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+TODO
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
