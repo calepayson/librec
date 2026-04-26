@@ -12,9 +12,8 @@ logger = logging.getLogger(__name__)
 
 EMBEDDING_SIZE = 32
 MLP_HIDDEN = [64, 32]
-DROPOUT = 0.2
+DROPOUT = 0.1
 LR = 0.001
-WEIGHT_DECAY = 1e-4
 BATCH_SIZE = 8192
 EPOCHS = 50
 EARLY_STOPPING = 5
@@ -88,9 +87,7 @@ class NCF(BaseModel):
         self._n_items = train["item_code"].max() + 1
 
         self._model = _NeuMF(self._n_users, self._n_items).to(self._device)
-        optimizer = torch.optim.AdamW(
-            self._model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY
-        )
+        optimizer = torch.optim.Adam(self._model.parameters(), lr=LR)
         loss_fn = nn.MSELoss()
 
         train_loader = self._make_loader(train, shuffle=True)
