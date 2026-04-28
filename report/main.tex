@@ -102,12 +102,19 @@ Rating std       & 1.00      \\
 \label{fig:lthing-ratings}
 \end{figure}
 
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\columnwidth]{cold_start_severity.png}
+\caption{LibraryThing rating distribution.}
+\label{fig:cold-start-severity}
+\end{figure}
+
 LibraryThing is a book review platform with 1.7M ratings from 83K users across 
 506K works. Ratings use a half-star scale (0.5-5.0) and peak at 4.0 stars
 (Figure~\ref{fig:lthing-ratings}), suggesting that users tend to rate books 
 they enjoyed. The user activity distribution is highly unequal (Gini = 0.809), 
 a small core of power users contributes disproportionately, while 62\% of users 
-have five or fewer ratings. The social friendship graph covers 30.8\% of users, 
+have five or fewer ratings (Figure~\ref{fig:cold-start-severity}). The social friendship graph covers 30.8\% of users, 
 and among cold-start users ($\leq$5 ratings), 21.5\% have at least one social 
 connection which provides a meaningful signal for social-aware methods.
 
