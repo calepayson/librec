@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from base_model import BaseModel
+from preprocess import load_trust_graph
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +15,9 @@ CATEGORICAL = []
 LGB_PARAMS = {
     "objective": "regression",
     "metric": "rmse",
-    "learning_rate": 0.05,
-    "num_leaves": 63,
-    "min_data_in_leaf": 20,
+    "learning_rate": 0.02,
+    "num_leaves": 31,
+    "min_data_in_leaf": 100,
     "feature_fraction": 0.9,
     "bagging_fraction": 0.9,
     "bagging_freq": 5,
@@ -29,6 +30,26 @@ NUM_BOOST_ROUND = 500
 EARLY_STOPPING_ROUNDS = 100
 OOF_FOLDS = 5
 SEED = 42
+SOCIAL_FEATURES = [
+    "social_degree",
+    "social_log_degree",
+    "social_neighbor_count",
+    "social_neighbor_coverage",
+    "social_neighbor_rating_count",
+    "social_neighbor_log_rating_count",
+    "social_neighbor_mean",
+    "social_neighbor_mean_minus_global",
+    "social_neighbor_mean_std",
+    "social_neighbor_mean_min",
+    "social_neighbor_mean_max",
+    "social_neighbor_mean_range",
+    "social_neighbor_weighted_mean",
+    "social_neighbor_weighted_mean_minus_global",
+    "social_user_vs_neighbor_mean",
+    "social_item_vs_neighbor_mean",
+    "social_has_neighbors",
+    "social_has_rated_neighbors",
+]
 
 
 def _safe_std(series: pd.Series) -> float:
@@ -37,11 +58,13 @@ def _safe_std(series: pd.Series) -> float:
 
 
 class _FeatureEngineer:
-    def __init__(self):
+    def __init__(self, social_edges: pd.DataFrame | None = None):
         self.global_mean = 0.0
+        self.social_edges = social_edges
         self.user_stats = None
         self.item_stats = None
         self.user_item_counts = None
+        self.social_stats = None
         self.feature_names = []
 
     def fit(self, train: pd.DataFrame) -> "_FeatureEngineer":
@@ -55,24 +78,18 @@ class _FeatureEngineer:
             .rename("user_item_train_count")
             .reset_index()
         )
+        self.social_stats = self._social_stats(train)
         return self
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         features = pd.DataFrame(index=df.index)
+        features = features.join(self._merge_on_index(df, ["user"], self.user_stats))
+        features = features.join(self._merge_on_index(df, ["item"], self.item_stats))
         features = features.join(
-            df[["user"]].merge(self.user_stats, on="user", how="left").drop(
-                columns=["user"]
-            )
+            self._merge_on_index(df, ["user", "item"], self.user_item_counts)
         )
         features = features.join(
-            df[["item"]].merge(self.item_stats, on="item", how="left").drop(
-                columns=["item"]
-            )
-        )
-        features = features.join(
-            df[["user", "item"]]
-            .merge(self.user_item_counts, on=["user", "item"], how="left")
-            .drop(columns=["user", "item"])
+            self._merge_on_index(df, ["user_code"], self.social_stats)
         )
         features["user_item_train_count"] = features[
             "user_item_train_count"
@@ -82,6 +99,11 @@ class _FeatureEngineer:
         features["is_cold_item"] = features["item_count"].isna().astype("int8")
         features["user_count"] = features["user_count"].fillna(0)
         features["item_count"] = features["item_count"].fillna(0)
+        features["social_degree"] = features["social_degree"].fillna(0)
+        features["social_neighbor_count"] = features["social_neighbor_count"].fillna(0)
+        features["social_neighbor_rating_count"] = features[
+            "social_neighbor_rating_count"
+        ].fillna(0)
 
         for prefix in ("user", "item"):
             features[f"{prefix}_mean"] = features[f"{prefix}_mean"].fillna(
@@ -107,6 +129,8 @@ class _FeatureEngineer:
             features[f"{prefix}_rating_span"] = (
                 features[f"{prefix}_max"] - features[f"{prefix}_min"]
             )
+
+        features = self._fill_social_features(features)
 
         features["user_item_popularity"] = (
             features["user_log_count"] * features["item_log_count"]
@@ -142,7 +166,9 @@ class _FeatureEngineer:
         fold_features = []
         for fold, valid_idx in enumerate(np.array_split(indices, OOF_FOLDS), start=1):
             train_idx = np.setdiff1d(indices, valid_idx, assume_unique=True)
-            fold_engineer = _FeatureEngineer().fit(train.iloc[train_idx])
+            fold_engineer = _FeatureEngineer(self.social_edges).fit(
+                train.iloc[train_idx]
+            )
             features = fold_engineer.transform(train.iloc[valid_idx])
             features.index = train.index[valid_idx]
             fold_features.append(features)
@@ -156,6 +182,103 @@ class _FeatureEngineer:
         features = pd.concat(fold_features).sort_index()
         self.fit(train)
         self.feature_names = list(features.columns)
+        return features
+
+    @staticmethod
+    def _merge_on_index(
+        df: pd.DataFrame, columns: list[str], stats: pd.DataFrame
+    ) -> pd.DataFrame:
+        values = df[columns].reset_index().merge(stats, on=columns, how="left")
+        values = values.set_index("index").drop(columns=columns)
+        return values.reindex(df.index)
+
+    def _social_stats(self, train: pd.DataFrame) -> pd.DataFrame:
+        if self.social_edges is None or self.social_edges.empty:
+            return pd.DataFrame(columns=["user_code", *SOCIAL_FEATURES])
+
+        user_stats = (
+            train.groupby("user_code", observed=True)[TARGET]
+            .agg(
+                neighbor_rating_count="size",
+                neighbor_mean="mean",
+                neighbor_std=_safe_std,
+                neighbor_min="min",
+                neighbor_max="max",
+            )
+            .reset_index()
+            .rename(columns={"user_code": "dst"})
+        )
+
+        edges = self.social_edges[["src", "dst"]].drop_duplicates()
+        social = edges.merge(user_stats, on="dst", how="left")
+        social["neighbor_weighted_sum"] = (
+            social["neighbor_mean"] * social["neighbor_rating_count"]
+        )
+
+        grouped = social.groupby("src", observed=True)
+        stats = grouped.agg(
+            social_degree=("dst", "size"),
+            social_neighbor_count=("neighbor_rating_count", "count"),
+            social_neighbor_rating_count=("neighbor_rating_count", "sum"),
+            social_neighbor_mean=("neighbor_mean", "mean"),
+            social_neighbor_mean_std=("neighbor_mean", _safe_std),
+            social_neighbor_mean_min=("neighbor_mean", "min"),
+            social_neighbor_mean_max=("neighbor_mean", "max"),
+            social_neighbor_weighted_sum=("neighbor_weighted_sum", "sum"),
+        ).reset_index()
+
+        stats["social_neighbor_weighted_mean"] = (
+            stats["social_neighbor_weighted_sum"]
+            / stats["social_neighbor_rating_count"].replace(0, np.nan)
+        )
+        stats = stats.drop(columns=["social_neighbor_weighted_sum"])
+        return stats.rename(columns={"src": "user_code"})
+
+    def _fill_social_features(self, features: pd.DataFrame) -> pd.DataFrame:
+        features["social_log_degree"] = np.log1p(features["social_degree"])
+        features["social_neighbor_log_rating_count"] = np.log1p(
+            features["social_neighbor_rating_count"]
+        )
+        features["social_neighbor_coverage"] = (
+            features["social_neighbor_count"]
+            / features["social_degree"].replace(0, np.nan)
+        )
+        features["social_has_neighbors"] = (features["social_degree"] > 0).astype(
+            "int8"
+        )
+        features["social_has_rated_neighbors"] = (
+            features["social_neighbor_count"] > 0
+        ).astype("int8")
+
+        for col in (
+            "social_neighbor_mean",
+            "social_neighbor_mean_min",
+            "social_neighbor_mean_max",
+            "social_neighbor_weighted_mean",
+        ):
+            features[col] = features[col].fillna(self.global_mean)
+
+        features["social_neighbor_mean_std"] = features[
+            "social_neighbor_mean_std"
+        ].fillna(0)
+        features["social_neighbor_mean_range"] = (
+            features["social_neighbor_mean_max"] - features["social_neighbor_mean_min"]
+        )
+        features["social_neighbor_mean_minus_global"] = (
+            features["social_neighbor_mean"] - self.global_mean
+        )
+        features["social_neighbor_weighted_mean_minus_global"] = (
+            features["social_neighbor_weighted_mean"] - self.global_mean
+        )
+        features["social_user_vs_neighbor_mean"] = (
+            features["user_mean"] - features["social_neighbor_weighted_mean"]
+        )
+        features["social_item_vs_neighbor_mean"] = (
+            features["item_mean"] - features["social_neighbor_weighted_mean"]
+        )
+
+        for col in SOCIAL_FEATURES:
+            features[col] = features[col].fillna(0)
         return features
 
     @staticmethod
@@ -181,6 +304,27 @@ class LightGBM(BaseModel):
         self._model = None
         self._features = _FeatureEngineer()
         self._predict_calls = 0
+
+    def evaluate(
+        self,
+        dataset: str,
+        train: pd.DataFrame,
+        val: pd.DataFrame,
+        test: pd.DataFrame,
+        rebuild: bool = False,
+    ) -> dict:
+        social_edges = load_trust_graph(dataset)
+        if social_edges is None:
+            logger.info("  No social graph found for %s.", dataset)
+        else:
+            logger.info(
+                "  Loaded social graph for %s (%s directed edges)",
+                dataset,
+                len(social_edges),
+            )
+        self._features = _FeatureEngineer(social_edges)
+        self._predict_calls = 0
+        return super().evaluate(dataset, train, val, test, rebuild=rebuild)
 
     def fit(self, train: pd.DataFrame, val: pd.DataFrame) -> None:
         train_x = self._features.fit_transform_oof(train)

@@ -49,10 +49,11 @@ reported on both the validation and test splits.
 The `lightgbm` model keeps the same train/validation/test split but trains one
 LightGBM regressor on a richer feature matrix. These features include user and
 item rating counts, means, biases, dispersion, rating ranges,
-popularity interactions, and cold-start flags. Aggregates are fit only on the
-training split and then joined onto validation/test rows to avoid label
-leakage. Training rows use random out-of-fold aggregates, so a row's own rating
-does not contribute to its label-derived user/item features.
+popularity interactions, cold-start flags, and social graph neighbor rating
+summaries. Aggregates are fit only on the training split and then joined onto
+validation/test rows to avoid label leakage. Training rows use random
+out-of-fold aggregates, so a row's own rating does not contribute to its
+label-derived user/item or social-neighbor features.
 
 ## Rebuilding stages
 
