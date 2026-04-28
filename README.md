@@ -56,6 +56,17 @@ avoid label leakage. Training rows use random out-of-fold aggregates, so a
 row's own rating does not contribute to its label-derived user/item or
 social-neighbor features.
 
+### LightGBM hyperparameter sweep
+
+`src/lightgbm_sweep.py` runs a small LightGBM hyperparameter sweep using the
+same engineered feature pipeline as the `lightgbm` model. To keep the sweep
+fast, it computes the OOF train features and validation features once at the
+beginning, then reuses those matrices across all parameter configurations.
+
+```bash
+uv run python src/lightgbm_sweep.py --dataset lthing
+```
+
 ## Rebuilding stages
 
 Each stage short-circuits when its artifact exists. To force recomputation,

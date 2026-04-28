@@ -16,18 +16,20 @@ LGB_PARAMS = {
     "objective": "regression",
     "metric": "rmse",
     "learning_rate": 0.02,
-    "num_leaves": 31,
-    "min_data_in_leaf": 100,
+    "num_leaves": 15,
+    "min_data_in_leaf": 50,
     "feature_fraction": 0.9,
-    "bagging_fraction": 0.9,
+    "feature_fraction_bynode": 0.8,
+    "bagging_fraction": 0.75,
     "bagging_freq": 5,
+    "lambda_l2": 0.0,
     "verbosity": -1,
     "force_col_wise": True,
     "seed": 42,
 }
 LOG_EVERY = 10
 NUM_BOOST_ROUND = 500
-EARLY_STOPPING_ROUNDS = 100
+EARLY_STOPPING_ROUNDS = 20
 OOF_FOLDS = 5
 SEED = 42
 SOCIAL_FEATURES = [
