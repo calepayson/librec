@@ -22,6 +22,7 @@ artifact already exists.
 | `split` | `src/split.py` | `data/{lthing,epinions}_{train,val,test}.parquet` |
 | `global_mean` | `src/global_mean.py` | `data/{lthing,epinions}_global_mean.txt` |
 | `baseline` | `src/baseline.py` | `data/{lthing,epinions}_baseline.txt` |
+| `lightgbm` | `src/lightgbm_model.py` | `data/evals/{lthing,epinions}_lightgbm.csv` |
 
 ### Split
 
@@ -43,6 +44,29 @@ using the train-set vocabulary; unseen ids in val/test get code `-1`).
 Training uses early stopping on validation RMSE, and the final RMSE is
 reported on both the validation and test splits.
 
+### Engineered LightGBM
+
+The `lightgbm` model keeps the same train/validation/test split but trains one
+LightGBM regressor on a richer feature matrix. These features include user and
+item rating counts, means, biases, dispersion, rating ranges,
+popularity interactions, cold-start flags, and social graph neighbor rating
+summaries, including trusted-neighbor ratings for the same item. Aggregates are
+fit only on the training split and then joined onto validation/test rows to
+avoid label leakage. Training rows use random out-of-fold aggregates, so a
+row's own rating does not contribute to its label-derived user/item or
+social-neighbor features.
+
+### LightGBM hyperparameter sweep
+
+`src/lightgbm_sweep.py` runs a small LightGBM hyperparameter sweep using the
+same engineered feature pipeline as the `lightgbm` model. To keep the sweep
+fast, it computes the OOF train features and validation features once at the
+beginning, then reuses those matrices across all parameter configurations.
+
+```bash
+uv run python src/lightgbm_sweep.py --dataset lthing
+```
+
 ## Rebuilding stages
 
 Each stage short-circuits when its artifact exists. To force recomputation,
@@ -50,6 +74,7 @@ pass `--rebuild` (or `-r`) with the stage name:
 
 ```bash
 ./run.sh --rebuild baseline       # retrain just the LightGBM models
+./run.sh --rebuild lightgbm       # retrain the engineered LightGBM model
 ./run.sh --rebuild global_mean    # recompute global-mean baselines
 ./run.sh --rebuild split          # rebuild splits (remember to also -r baseline)
 ./run.sh --rebuild exploration    # recompute dataset summary stats
