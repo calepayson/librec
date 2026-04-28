@@ -32,4 +32,7 @@ X.~He, L.~Liao, H.~Zhang, L.~Nie, X.~Hu, and T.-S. Chua, ``Neural collaborative 
 \bibitem{ma2011soreg}
 H.~Ma, D.~Zhou, C.~Liu, M.~R. Lyu, and I.~King, ``Recommender systems with social regularization,'' in \emph{Proceedings of the Fourth ACM International Conference on Web Search and Data Mining}, 2011, pp. 287--296.
 
+\bibitem{he2020lightgcn}
+X.~He, K.~Deng, X.~Wang, Y.~Li, Y.~Zhang, and M.~Wang, ``Lightgcn: Simplifying and powering graph convolution network for recommendation,'' in \emph{Proceedings of the 43rd International ACM SIGIR Conference on Research and Development in Information Retrieval}, 2020, pp. 639--648.
+
 \end{thebibliography}
