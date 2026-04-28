@@ -1,16 +1,15 @@
 import argparse
 import logging
 import random
+import subprocess
+import sys
+from pathlib import Path
 
 import numpy as np
-import torch
 
-from baseline import LightGBMBaseline
 from download import download
 from exploration import explore
 from global_mean import GlobalMean
-from ncf import NCF
-from social_ncf import SocialNCF
 from plot import plot
 from preprocess import DATASETS, load_preprocessed, preprocess
 from split import split
@@ -21,15 +20,32 @@ logger = logging.getLogger(__name__)
 SEED = 42
 random.seed(SEED)
 np.random.seed(SEED)
-torch.manual_seed(SEED)
-torch.cuda.manual_seed_all(SEED)
 
-MODELS = [
-    GlobalMean(),
-    LightGBMBaseline(),
-    NCF(),
-    SocialNCF(),
-]
+MODEL_NAMES = ["global_mean", "baseline", "ncf", "social_ncf"]
+
+
+def _make_model(name):
+    if name == "global_mean":
+        return GlobalMean()
+    if name == "baseline":
+        from baseline import LightGBMBaseline
+
+        return LightGBMBaseline()
+    if name == "ncf":
+        import torch
+        from ncf import NCF
+
+        torch.manual_seed(SEED)
+        torch.cuda.manual_seed_all(SEED)
+        return NCF()
+    if name == "social_ncf":
+        import torch
+        from social_ncf import SocialNCF
+
+        torch.manual_seed(SEED)
+        torch.cuda.manual_seed_all(SEED)
+        return SocialNCF()
+    raise ValueError(f"Unknown model: {name}")
 
 
 def main():
@@ -48,6 +64,11 @@ def main():
         default="lthing",
         choices=DATASETS,
         help="Dataset to evaluate (default: lthing)",
+    )
+    parser.add_argument(
+        "--only-model",
+        choices=MODEL_NAMES,
+        help=argparse.SUPPRESS,
     )
     args = parser.parse_args()
 
@@ -75,6 +96,12 @@ def main():
         else set()
     )
 
+    if args.only_model:
+        train, val, test = load_preprocessed(args.dataset)
+        model = _make_model(args.only_model)
+        rebuild = rebuild_models or model.name in model_names_to_rebuild
+        return [model.evaluate(args.dataset, train, val, test, rebuild=rebuild)]
+
     logger.info("Getting raw data...")
     download(args.dataset, rebuild=rebuild_download)
 
@@ -89,11 +116,26 @@ def main():
 
     logger.info("Running models...")
     all_results = []
-    train, val, test = load_preprocessed(args.dataset)
-    for model in MODELS:
-        rebuild = rebuild_models or model.name in model_names_to_rebuild
-        results = model.evaluate(args.dataset, train, val, test, rebuild=rebuild)
-        all_results.append(results)
+    model_names = (
+        [name for name in MODEL_NAMES if name in model_names_to_rebuild]
+        if model_names_to_rebuild
+        else MODEL_NAMES
+    )
+    for model_name in model_names:
+        command = [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--dataset",
+            args.dataset,
+            "--only-model",
+            model_name,
+        ]
+        if rebuild_models:
+            command.extend(["--rebuild", "models"])
+        elif model_name in model_names_to_rebuild:
+            command.extend(["--rebuild", model_name])
+
+        subprocess.run(command, check=True)
 
     logger.info("Generating plots...")
     plot(args.dataset, rebuild=rebuild_plots)
