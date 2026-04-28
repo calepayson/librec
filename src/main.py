@@ -21,7 +21,7 @@ SEED = 42
 random.seed(SEED)
 np.random.seed(SEED)
 
-MODEL_NAMES = ["global_mean", "baseline", "lightgbm", "ncf", "social_ncf"]
+MODEL_NAMES = ["global_mean", "baseline", "gfp", "lightgbm", "ncf", "social_ncf"]
 
 
 def _make_model(name):
@@ -31,6 +31,10 @@ def _make_model(name):
         from baseline import LightGBMBaseline
 
         return LightGBMBaseline()
+    if name == "gfp":
+        from gfp import GFP
+
+        return GFP()
     if name == "lightgbm":
         from lightgbm_model import LightGBM
 
