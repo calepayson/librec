@@ -61,7 +61,7 @@ metrics. The models are as follows:
 \begin{itemize}
   \item \textbf{Variant A}: (Baseline): Global Mean - Simply returns the average rating of the training set.
   \item \textbf{Variant B}: (Baseline): Untuned-LightGBM - A LightGBM model with default hyperparameters.
-  \item \textbf{Variant C} (Jasper): Hyper-tuned LightGBM - Takes the baseline and evaluates the performance difference of aggressive hyperparameter tuning.
+  \item \textbf{Variant C} (Jasper): Hyper-tuned LightGBM - Takes the baseline and evaluates the performance difference of aggressive feature engineering, and hyperparameter tuning.
   \item \textbf{Variant D} (Cale): SocialNCF - Combines neural collaborative filtering (NCF) with social graph regularization and neighbor-averaging cold-start inference.
   \item \textbf{Variant E} (Advait): GFP-GB --- Graph Feature Propagation with Gradient Boosting. Propagates handcrafted statistical features through the bipartite user-item graph and social graph, then trains LightGBM on the resulting feature matrix.
 \end{itemize}
@@ -178,13 +178,98 @@ as it can learn per-user and per-item biases.
 
 \subsection{Design and Motivation}
 
-TODO
+The hyper-tuned LightGBM model was built to push the limits of simple gradient boosting, which is known to work well in cold start environments. The idea was to augment the strong baseline of LightGBM with tons of engineered features from the social interaction graph. Lots of aggregate features were also added like the user's average rating, or rating count. Out-of-fold feature construction was also an important part of this model, as it helped prevent overfitting during training.
 
 \subsection{Implementation Details}
 
-TODO
+The LightGBM model is tasked with predicting user-item rating pairs given 62 unique features. It first splits the data into 5 folds and computes features from data outside of each fold. This prevents each row's data from contaminating features like the mean when there are a low number of ratings for that feature.
+
+The model also loads the social trust graph, and computes features from the trusted neighbors, like average rating for example. These features are also computed out of fold and are intended to help the model predict when user-item history alone is insufficient.
+
+Unfortunately, the model tends to favor only a few top features like \texttt{user\_item\_bias\_sum} and \texttt{mean\_user\_item\_rating}, however any attempt to prioritize features more evenly strictly decreased performance. Also, the social trust graph features were hardly used at all by the model.
+
+See Table~\ref{tab:tuned-lgbm-feature-importance} for a list of every feature included in the model.
+
+\begin{table*}[htbp]
+\caption{Hyper-Tuned LightGBM --- Feature Importance}
+\label{tab:tuned-lgbm-feature-importance}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.12}
+\begin{tabular}{p{6.5cm}p{2.4cm}p{7.1cm}p{1.3cm}}
+\toprule
+\textbf{Feature} & \textbf{Type} & \textbf{Description} & \textbf{Importance} \\
+\midrule
+\raggedright\texttt{user\_item\_bias\_sum} & Interaction & Sum of user and item bias from the global mean. & 52.01\% \\
+\raggedright\texttt{mean\_user\_item\_rating} & Interaction & Average of the user's mean rating and the item's mean rating. & 30.16\% \\
+\raggedright\texttt{user\_mean} & User aggregate & Mean rating given by the user in training data. & 5.28\% \\
+\raggedright\texttt{user\_mean\_minus\_global} & User aggregate & User mean rating minus the global training mean. & 2.37\% \\
+\raggedright\texttt{item\_count} & Item aggregate & Number of training ratings for the item. & 2.02\% \\
+\raggedright\texttt{user\_raw\_mean} & User aggregate & Copy of the user's mean rating before derived interactions. & 1.74\% \\
+\raggedright\texttt{user\_count} & User aggregate & Number of training ratings by the user. & 1.21\% \\
+\raggedright\texttt{user\_bias} & User aggregate & User rating bias relative to the global mean. & 0.91\% \\
+\raggedright\texttt{item\_min} & Item aggregate & Minimum training rating received by the item. & 0.83\% \\
+\raggedright\texttt{user\_item\_bias\_gap} & Interaction & Difference between user bias and item bias. & 0.68\% \\
+\raggedright\texttt{user\_median} & User aggregate & Median rating given by the user. & 0.59\% \\
+\raggedright\texttt{item\_log\_count} & Item aggregate & Log-transformed item rating count. & 0.39\% \\
+\raggedright\texttt{user\_log\_count} & User aggregate & Log-transformed user rating count. & 0.38\% \\
+\raggedright\texttt{item\_max} & Item aggregate & Maximum training rating received by the item. & 0.36\% \\
+\raggedright\texttt{item\_raw\_mean} & Item aggregate & Copy of the item's mean rating before derived interactions. & 0.20\% \\
+\raggedright\texttt{social\_item\_user\_gap} & Social item feature & User mean minus trusted-neighbor mean rating for the target item. & 0.14\% \\
+\raggedright\texttt{user\_item\_popularity} & Interaction & Product of log user count and log item count. & 0.14\% \\
+\raggedright\texttt{item\_mean} & Item aggregate & Mean training rating received by the item. & 0.12\% \\
+\raggedright\texttt{social\_item\_item\_gap} & Social item feature & Item mean minus trusted-neighbor mean rating for the target item. & 0.11\% \\
+\raggedright\texttt{item\_mean\_minus\_global} & Item aggregate & Item mean rating minus the global training mean. & 0.11\% \\
+\raggedright\texttt{item\_minus\_user\_mean} & Interaction & Item mean rating minus user mean rating. & 0.08\% \\
+\raggedright\texttt{user\_max} & User aggregate & Maximum rating given by the user. & 0.07\% \\
+\raggedright\texttt{item\_rating\_span} & Item aggregate & Difference between the item's maximum and minimum rating. & 0.04\% \\
+\raggedright\texttt{item\_median} & Item aggregate & Median training rating received by the item. & 0.03\% \\
+\raggedright\texttt{is\_cold\_item} & Cold-start flag & Indicates whether the item is unseen in training aggregates. & 0.01\% \\
+\raggedright\texttt{item\_std} & Item aggregate & Standard deviation of ratings for the item. & 0.01\% \\
+\raggedright\texttt{user\_std} & User aggregate & Standard deviation of the user's ratings. & 0.00\% \\
+\raggedright\texttt{user\_min} & User aggregate & Minimum rating given by the user. & 0.00\% \\
+\raggedright\texttt{user\_item\_train\_count} & User-item aggregate & Number of times this user-item pair appears in training. & 0.00\% \\
+\raggedright\texttt{social\_degree} & Social aggregate & Number of trusted neighbors for the user. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_count} & Social aggregate & Number of trusted neighbors with training ratings. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_rating\_count} & Social aggregate & Total number of ratings from trusted neighbors. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_mean} & Social aggregate & Average rating mean across trusted neighbors. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_mean\_std} & Social aggregate & Standard deviation of trusted-neighbor mean ratings. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_mean\_min} & Social aggregate & Minimum mean rating among trusted neighbors. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_mean\_max} & Social aggregate & Maximum mean rating among trusted neighbors. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_weighted\_mean} & Social aggregate & Trusted-neighbor mean weighted by neighbor rating count. & 0.00\% \\
+\raggedright\texttt{social\_item\_neighbor\_count} & Social item feature & Number of trusted neighbors who rated the target item. & 0.00\% \\
+\raggedright\texttt{social\_item\_neighbor\_mean} & Social item feature & Mean rating trusted neighbors gave to the target item. & 0.00\% \\
+\raggedright\texttt{social\_item\_neighbor\_std} & Social item feature & Standard deviation of trusted-neighbor ratings for the target item. & 0.00\% \\
+\raggedright\texttt{social\_item\_neighbor\_min} & Social item feature & Minimum trusted-neighbor rating for the target item. & 0.00\% \\
+\raggedright\texttt{social\_item\_neighbor\_max} & Social item feature & Maximum trusted-neighbor rating for the target item. & 0.00\% \\
+\raggedright\texttt{social\_item\_neighbor\_frac\_liked} & Social item feature & Fraction of trusted-neighbor item ratings at least 4 stars. & 0.00\% \\
+\raggedright\texttt{social\_item\_neighbor\_frac\_disliked} & Social item feature & Fraction of trusted-neighbor item ratings at most 2 stars. & 0.00\% \\
+\raggedright\texttt{is\_cold\_user} & Cold-start flag & Indicates whether the user is unseen in training aggregates. & 0.00\% \\
+\raggedright\texttt{user\_rating\_span} & User aggregate & Difference between the user's maximum and minimum rating. & 0.00\% \\
+\raggedright\texttt{item\_bias} & Item aggregate & Item rating bias relative to the global mean. & 0.00\% \\
+\raggedright\texttt{social\_log\_degree} & Social aggregate & Log-transformed social degree. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_log\_rating\_count} & Social aggregate & Log-transformed trusted-neighbor rating count. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_coverage} & Social aggregate & Fraction of trusted neighbors with rating history. & 0.00\% \\
+\raggedright\texttt{social\_has\_neighbors} & Social flag & Indicates whether the user has trusted neighbors. & 0.00\% \\
+\raggedright\texttt{social\_has\_rated\_neighbors} & Social flag & Indicates whether trusted neighbors have ratings. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_mean\_range} & Social aggregate & Range of trusted-neighbor mean ratings. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_mean\_minus\_global} & Social aggregate & Trusted-neighbor mean minus the global training mean. & 0.00\% \\
+\raggedright\texttt{social\_neighbor\_weighted\_mean\_minus\_global} & Social aggregate & Weighted trusted-neighbor mean minus the global training mean. & 0.00\% \\
+\raggedright\texttt{social\_user\_vs\_neighbor\_mean} & Social aggregate & User mean minus trusted-neighbor weighted mean. & 0.00\% \\
+\raggedright\texttt{social\_item\_vs\_neighbor\_mean} & Social aggregate & Item mean minus trusted-neighbor weighted mean. & 0.00\% \\
+\raggedright\texttt{social\_item\_neighbor\_log\_count} & Social item feature & Log-transformed count of trusted neighbors who rated the item. & 0.00\% \\
+\raggedright\texttt{social\_item\_has\_neighbor\_rating} & Social item flag & Indicates whether any trusted neighbor rated the target item. & 0.00\% \\
+\raggedright\texttt{social\_item\_neighbor\_share} & Social item feature & Share of trusted neighbors who rated the target item. & 0.00\% \\
+\raggedright\texttt{social\_item\_neighbor\_range} & Social item feature & Range of trusted-neighbor ratings for the target item. & 0.00\% \\
+\raggedright\texttt{social\_item\_neighbor\_mean\_minus\_global} & Social item feature & Trusted-neighbor item mean minus the global training mean. & 0.00\% \\
+\bottomrule
+\end{tabular}
+\end{table*}
 
 \subsection{Design Decision Log}
+
+See Table~\ref{tab:decisions-tuned-lgbm}.
 
 \begin{table}[htbp]
 \caption{Hyper-Tuned LightGBM --- Key Design Decisions}
@@ -192,16 +277,25 @@ TODO
 \centering
 \begin{tabular}{p{2.5cm}p{2.5cm}p{2.5cm}}
 \toprule
-\textbf{Choice} & \textbf{Selected} & \textbf{Alternatives} \\
+\textbf{Choice} & \textbf{Selected} & \textbf{Alternatives Tried} \\
 \midrule
-TODO & TODO & TODO \\
+Base model & LightGBM & Linear; neural \\
+Features & Rating + social aggregates & Raw IDs \\
+Aggregation & 5-fold OOF & Full-train aggregates \\
+Social signal & Trust-neighbor stats & No trust graph \\
+Tuning & Validation RMSE sweep & Defaults \\
+Tree size & 15 leaves & 31 leaves \\
+Subsampling & Row + feature & None \\
+Stopping & 20-round early stop & Full 500 rounds \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Results and Analysis}
 
-TODO
+The hyper-tuned LightGBM achieved validation RMSE 0.9480 and test RMSE 0.9632, improving over the untuned LightGBM baseline's 0.9551 validation RMSE and 0.9690 test RMSE. Test MAE also improved from 0.7510 to 0.7434.
+
+These results show a small but consistent increase from the LightGBM baseline, as well as representing the highest scores our team achieved on this task. While I am somewhat disappointed in the high concentration of feature importance of the top 2 features, I am overall satisfied with the model's high performance.
 
 \section{SocialNCF}
 \label{sec:social-ncf}
@@ -461,7 +555,7 @@ the social graph) limits how far this benefit reaches.
 \midrule
 Global Mean      & 0.9956 & 0.9945 & 0.7852 & 0.2995 & 0.7237 & 0.7248 \\
 LightGBM         & 0.9551 & 0.9690 & 0.7510 & 0.3115 & 0.7295 & 0.7491 \\
-Tuned LightGBM   & TODO   & TODO   & TODO   & TODO   & TODO   & TODO   \\
+Tuned LightGBM   & 0.9480 & 0.9632 & 0.7434 & 0.3140 & 0.7315 & 0.7539 \\
 NCF              & 0.9884 & 0.9922 & 0.7811 & 0.3045 & 0.7270 & 0.7379 \\
 Social NCF       & 0.9916 & 0.9919 & 0.7794 & 0.3074 & 0.7283 & 0.7422 \\
 GFP-GB          & 0.9594 & 0.9708 & 0.7487 & 0.2938 & 0.7327 & 0.7209 \\
@@ -556,12 +650,31 @@ averages collapse toward the global mean anyway. On a denser graph the approach
 would likely shine more.
 
 \subsection{Jasper Morgal}
-TODO
+
+To be honest, I am somewhat disappointed in the feature importance of my model. I had high hopes for the social item features, and thought they might be able to benefit the LightGBM a lot. What ended up happening was the model worked best only using a few narrow user and item aggregate features, not dissimilar to the baseline LightGBM.
+
+Through this project, I learned that training recommender systems is very hard. There's a million good sounding ideas and only very few of them actually work. While this model's behavior was not as satisfying as my song reccomender system for the Kaggle challenge, I still had fun optimizing the RMSE.
 
 \section{Conclusion}
 \label{sec:conclusion}
 
-TODO
+Across all models, the clearest result is that simple, highly optimized tabular
+methods worked the best on this dataset. The hyper-tuned LightGBM model
+achieved the best overall performance, with a test RMSE of 0.9632 and the
+highest NDCG@10 score of 0.7539. Most of this gain came from carefully
+engineered user/item aggregate features rather than from complex social graph features or
+neural modeling. The untuned LightGBM baseline was already very competitive,
+which suggests that on an extremely sparse recommendation dataset, strong
+entity-level bias features can explain much of the available signal.
+
+The social graph still provided useful but limited information. Social NCF
+improved over base NCF on ranking metrics, and GFP-GB showed that propagated
+graph statistics can slightly improve typical error, but neither approach
+surpassed the LightGBM variants. Overall, our results suggest that social-aware
+methods are promising but highly dependent on graph coverage and interaction
+density. For LibraryThing, where most users have few ratings and many users are
+outside the social graph, the best strategy was to use simple models with
+careful feature engineering.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
