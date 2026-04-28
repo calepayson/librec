@@ -50,6 +50,22 @@ SOCIAL_FEATURES = [
     "social_has_neighbors",
     "social_has_rated_neighbors",
 ]
+SOCIAL_ITEM_FEATURES = [
+    "social_item_neighbor_count",
+    "social_item_neighbor_log_count",
+    "social_item_neighbor_mean",
+    "social_item_neighbor_mean_minus_global",
+    "social_item_neighbor_std",
+    "social_item_neighbor_min",
+    "social_item_neighbor_max",
+    "social_item_neighbor_range",
+    "social_item_neighbor_frac_liked",
+    "social_item_neighbor_frac_disliked",
+    "social_item_has_neighbor_rating",
+    "social_item_user_gap",
+    "social_item_item_gap",
+    "social_item_neighbor_share",
+]
 
 
 def _safe_std(series: pd.Series) -> float:
@@ -65,6 +81,7 @@ class _FeatureEngineer:
         self.item_stats = None
         self.user_item_counts = None
         self.social_stats = None
+        self.neighbor_item_ratings = None
         self.feature_names = []
 
     def fit(self, train: pd.DataFrame) -> "_FeatureEngineer":
@@ -79,6 +96,7 @@ class _FeatureEngineer:
             .reset_index()
         )
         self.social_stats = self._social_stats(train)
+        self.neighbor_item_ratings = self._neighbor_item_ratings(train)
         return self
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -91,6 +109,7 @@ class _FeatureEngineer:
         features = features.join(
             self._merge_on_index(df, ["user_code"], self.social_stats)
         )
+        features = features.join(self._social_item_features(df))
         features["user_item_train_count"] = features[
             "user_item_train_count"
         ].fillna(0)
@@ -131,6 +150,7 @@ class _FeatureEngineer:
             )
 
         features = self._fill_social_features(features)
+        features = self._fill_social_item_features(features)
 
         features["user_item_popularity"] = (
             features["user_log_count"] * features["item_log_count"]
@@ -234,6 +254,57 @@ class _FeatureEngineer:
         stats = stats.drop(columns=["social_neighbor_weighted_sum"])
         return stats.rename(columns={"src": "user_code"})
 
+    @staticmethod
+    def _neighbor_item_ratings(train: pd.DataFrame) -> pd.DataFrame:
+        ratings = train[["user_code", "item", TARGET]].copy()
+        ratings["neighbor_item_liked"] = (ratings[TARGET] >= 4.0).astype("float32")
+        ratings["neighbor_item_disliked"] = (ratings[TARGET] <= 2.0).astype("float32")
+        ratings = (
+            ratings.groupby(["user_code", "item"], observed=True)
+            .agg(
+                neighbor_item_rating=(TARGET, "mean"),
+                neighbor_item_liked=("neighbor_item_liked", "mean"),
+                neighbor_item_disliked=("neighbor_item_disliked", "mean"),
+            )
+            .reset_index()
+            .rename(columns={"user_code": "dst"})
+        )
+        return ratings
+
+    def _social_item_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        empty = pd.DataFrame(index=df.index, columns=SOCIAL_ITEM_FEATURES)
+        if (
+            self.social_edges is None
+            or self.social_edges.empty
+            or self.neighbor_item_ratings is None
+            or self.neighbor_item_ratings.empty
+        ):
+            return empty
+
+        row_items = (
+            df[["user_code", "item"]]
+            .reset_index()
+            .rename(columns={"index": "_row_index", "user_code": "src"})
+        )
+        edges = self.social_edges[["src", "dst"]].drop_duplicates()
+        matches = row_items.merge(edges, on="src", how="inner").merge(
+            self.neighbor_item_ratings, on=["dst", "item"], how="inner"
+        )
+        if matches.empty:
+            return empty
+
+        grouped = matches.groupby("_row_index", observed=True)
+        stats = grouped.agg(
+            social_item_neighbor_count=("neighbor_item_rating", "size"),
+            social_item_neighbor_mean=("neighbor_item_rating", "mean"),
+            social_item_neighbor_std=("neighbor_item_rating", _safe_std),
+            social_item_neighbor_min=("neighbor_item_rating", "min"),
+            social_item_neighbor_max=("neighbor_item_rating", "max"),
+            social_item_neighbor_frac_liked=("neighbor_item_liked", "mean"),
+            social_item_neighbor_frac_disliked=("neighbor_item_disliked", "mean"),
+        )
+        return stats.reindex(df.index)
+
     def _fill_social_features(self, features: pd.DataFrame) -> pd.DataFrame:
         features["social_log_degree"] = np.log1p(features["social_degree"])
         features["social_neighbor_log_rating_count"] = np.log1p(
@@ -278,6 +349,52 @@ class _FeatureEngineer:
         )
 
         for col in SOCIAL_FEATURES:
+            features[col] = features[col].fillna(0)
+        return features
+
+    def _fill_social_item_features(self, features: pd.DataFrame) -> pd.DataFrame:
+        features["social_item_neighbor_count"] = features[
+            "social_item_neighbor_count"
+        ].fillna(0).astype("float32")
+        features["social_item_neighbor_log_count"] = np.log1p(
+            features["social_item_neighbor_count"]
+        )
+        features["social_item_has_neighbor_rating"] = (
+            features["social_item_neighbor_count"] > 0
+        ).astype("int8")
+        features["social_item_neighbor_share"] = (
+            features["social_item_neighbor_count"]
+            / features["social_degree"].replace(0, np.nan)
+        )
+
+        for col in (
+            "social_item_neighbor_mean",
+            "social_item_neighbor_min",
+            "social_item_neighbor_max",
+        ):
+            features[col] = features[col].fillna(self.global_mean)
+
+        for col in (
+            "social_item_neighbor_std",
+            "social_item_neighbor_frac_liked",
+            "social_item_neighbor_frac_disliked",
+        ):
+            features[col] = features[col].fillna(0)
+
+        features["social_item_neighbor_range"] = (
+            features["social_item_neighbor_max"] - features["social_item_neighbor_min"]
+        )
+        features["social_item_neighbor_mean_minus_global"] = (
+            features["social_item_neighbor_mean"] - self.global_mean
+        )
+        features["social_item_user_gap"] = (
+            features["user_mean"] - features["social_item_neighbor_mean"]
+        )
+        features["social_item_item_gap"] = (
+            features["item_mean"] - features["social_item_neighbor_mean"]
+        )
+
+        for col in SOCIAL_ITEM_FEATURES:
             features[col] = features[col].fillna(0)
         return features
 
