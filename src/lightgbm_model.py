@@ -308,9 +308,9 @@ class _FeatureEngineer:
         return stats.reindex(df.index)
 
     def _fill_social_features(self, features: pd.DataFrame) -> pd.DataFrame:
-        features["social_log_degree"] = np.log1p(features["social_degree"])
+        features["social_log_degree"] = np.log1p(features["social_degree"].astype("float32"))
         features["social_neighbor_log_rating_count"] = np.log1p(
-            features["social_neighbor_rating_count"]
+        features["social_neighbor_rating_count"].astype("float32")
         )
         features["social_neighbor_coverage"] = (
             features["social_neighbor_count"]

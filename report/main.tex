@@ -6,6 +6,8 @@
 \usepackage{hyperref}
 \usepackage{booktabs}
 \usepackage{multirow}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
 
 \title{LibRec: Comparing Social-Aware Recommender Systems}
 
@@ -29,9 +31,9 @@ reviews and 83K users) which contains the classic (user, item, rating) tuple as
 well as a trust graph. We build a shared pipeline along with two baselines, a 
 global mean and an untuned LightGBM model, and then attempt to beat those 
 baselines across rating-accuracy and ranking-quality metrics. To do this we 
-implement Three models, a hyper-tuned LightGBM model, a Neural Collaborative 
-Filtering (NCF) model with social regularization, and a Graph Convolution over 
-the user-item interaction graph.
+implement three models: a hyper-tuned LightGBM model, a Neural Collaborative 
+Filtering (NCF) model with social regularization, and Graph Feature Propagation 
+with Gradient Boosting (GFP-GB).
 \end{abstract}
 
 \noindent\textbf{Repository:} \url{https://www.github.com/calepayson/librec}
@@ -61,7 +63,7 @@ metrics. The models are as follows:
   \item \textbf{Variant B}: (Baseline): Untuned-LightGBM - A LightGBM model with default hyperparameters.
   \item \textbf{Variant C} (Jasper): Hyper-tuned LightGBM - Takes the baseline and evaluates the performance difference of aggressive hyperparameter tuning.
   \item \textbf{Variant D} (Cale): SocialNCF - Combines neural collaborative filtering (NCF) with social graph regularization and neighbor-averaging cold-start inference.
-  \item \textbf{Variant E} (Advait): Graph Convolutional Network over the user-item interaction graph.
+  \item \textbf{Variant E} (Advait): GFP-GB --- Graph Feature Propagation with Gradient Boosting. Propagates handcrafted statistical features through the bipartite user-item graph and social graph, then trains LightGBM on the resulting feature matrix.
 \end{itemize}
 
 \section{Dataset Analysis}
@@ -304,37 +306,147 @@ But, all that being said, it didn't beat the simple LightGBM baseline, despite
 many hours of hyperparameter tuning that I wish I could take back. Stick with
 the simple model first kids. Complexity is tough.
 
-\section{Graph Convolutional Network}
-\label{sec:gcn}
+\section{GFP-GB: Graph Feature Propagation with Gradient Boosting}
+\label{sec:gfp}
 
 \textit{Advait Shinde}
 
 \subsection{Design and Motivation}
 
-TODO
+The LightGBM baseline learns per-entity biases from user and item codes, but
+ignores the graph structure entirely. End-to-end graph learning (e.g., 
+LightGCN~\cite{he2020lightgcn}) is an alternative, but on a dataset this 
+sparse it tends to overfit quickly. GFP-GB takes a middle path: compute robust, 
+interpretable statistical features from training interactions, propagate them 
+through the graph to give each node neighborhood context, and then let LightGBM 
+learn how to combine those features into a rating prediction.
+
+The key advantage over learned embeddings is that propagated statistics are 
+computed once from training data, require no gradient flow through the graph, 
+and naturally handle cold-start nodes via shrinkage toward the global mean.
+Since Jasper's section already covers LightGBM tuning in depth, this section 
+focuses on the graph feature propagation that distinguishes GFP-GB.
 
 \subsection{Implementation Details}
 
-TODO
+Feature construction follows six steps, illustrated in 
+Figure~\ref{fig:gfp-arch}:
+
+\textbf{Step 1 --- Node statistics.} For every user and item in the training 
+set, compute mean, count, and standard deviation of ratings. Raw means are 
+shrunk toward the global mean with a shrinkage constant $K = 10$:
+\begin{equation}
+  \tilde{\mu}_u = \frac{n_u \bar{r}_u + K \bar{r}}{n_u + K}
+\end{equation}
+where $n_u$ is the user's rating count and $\bar{r}$ is the global mean.
+The same formula applies to items.
+
+\textbf{Step 2 --- Bipartite propagation (1-hop).} Each item inherits the 
+average shrunk mean of its raters; each user inherits the average shrunk mean 
+of the items they rated:
+\begin{align}
+  \text{sm\_item}_i &= \frac{1}{|\mathcal{U}_i|}\sum_{u \in \mathcal{U}_i} \tilde{\mu}_u \\
+  \text{sm\_user}_u &= \frac{1}{|\mathcal{I}_u|}\sum_{i \in \mathcal{I}_u} \tilde{\mu}_i
+\end{align}
+
+\textbf{Step 3 --- Bipartite propagation (2-hop).} Apply the same averaging 
+one step further, so items inherit 2-hop user context and vice versa.
+
+\textbf{Step 4 --- Social propagation (1-hop).} Each user inherits the average 
+shrunk mean of their social neighbors, giving a \texttt{neighbor\_mean} feature 
+and a \texttt{social\_degree} feature.
+
+\textbf{Step 5 --- Feature assembly.} For each (user, item) pair, concatenate 
+the original statistics, both bipartite-propagated features (1- and 2-hop), 
+difference features (\texttt{item\_vs\_smoothed}, \texttt{user\_vs\_smoothed}), 
+and social features into a 12-dimensional feature vector.
+
+\textbf{Step 6 --- LightGBM training.} A LightGBM regressor is trained on the 
+assembled feature matrix with the same hyperparameters as the baseline: 
+learning rate 0.05, 63 leaves, 500 rounds with early stopping on validation 
+RMSE.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=0.55cm and 0.3cm,
+  box/.style={draw, rounded corners=3pt, minimum width=2.1cm, minimum height=0.55cm,
+              font=\scriptsize, align=center, fill=white},
+  larr/.style={->, >=stealth, thick},
+  every node/.style={font=\scriptsize}
+]
+
+% Row 1: inputs
+\node[box] (train) {Training\\Interactions};
+\node[box, right=1.4cm of train] (social) {Social\\Graph};
+
+% Row 2
+\node[box, below=of train] (stats) {Node Statistics\\(shrunk means,\\counts)};
+
+% Row 3: two propagation boxes side by side
+\node[box, below=of stats, xshift=-1.2cm] (bip) {Bipartite\\Propagation\\(1-hop, 2-hop)};
+\node[box, below=of stats, xshift=1.2cm] (soc) {Social\\Propagation\\(1-hop)};
+
+% Row 4: assemble
+\node[box, below=1.1cm of stats] (feat) {Feature Matrix\\(12 features / pair)};
+
+% Row 5: LightGBM
+\node[box, below=0.55cm of feat] (lgbm) {LightGBM\\Regressor};
+
+% Row 6: output
+\node[box, below=0.55cm of lgbm] (out) {Rating\\Prediction};
+
+% Arrows
+\draw[larr] (train) -- (stats);
+\draw[larr] (social) |- (soc);
+\draw[larr] (stats) -- (bip);
+\draw[larr] (stats) -- (soc);
+\draw[larr] (bip) |- (feat);
+\draw[larr] (soc) |- (feat);
+\draw[larr] (feat) -- (lgbm);
+\draw[larr] (lgbm) -- (out);
+
+\end{tikzpicture}
+\caption{GFP-GB architecture. Statistical features are propagated through both 
+the bipartite interaction graph and the social graph before being fed to 
+LightGBM.}
+\label{fig:gfp-arch}
+\end{figure}
 
 \subsection{Design Decision Log}
 
 \begin{table}[htbp]
-\caption{GCN --- Key Design Decisions}
-\label{tab:decisions-gcn}
+\caption{GFP-GB --- Key Design Decisions}
+\label{tab:decisions-gfp}
 \centering
-\begin{tabular}{p{2.5cm}p{2.5cm}p{2.5cm}}
+\begin{tabular}{p{2.0cm}p{2.2cm}p{3.0cm}}
 \toprule
-\textbf{Choice} & \textbf{Selected} & \textbf{Alternatives} \\
+\textbf{Choice} & \textbf{Selected} & \textbf{Alternatives Tried} \\
 \midrule
-TODO & TODO & TODO \\
+Graph method & Statistical propagation & LightGCN~\cite{he2020lightgcn} (overfit, val RMSE 0.9458 at epoch 4) \\
+Predictor & LightGBM & GFP-MLP (val RMSE 0.9524 in notebook) \\
+Prop.\ depth & 2-hop bipartite, 1-hop social & 1-hop only \\
+Cold-start & Shrinkage to global mean & Code $= -1$ \\
+Feature type & Handcrafted statistics & Learned embeddings \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Results and Analysis}
 
-TODO
+GFP-GB achieves a test RMSE of 0.9708 and MAE of 0.7487, beating Global Mean 
+on both accuracy metrics. The MAE (0.7487) is slightly better than the untuned 
+LightGBM baseline (0.7510), but RMSE is marginally worse (0.9708 vs.\ 0.9690),
+suggesting that the propagated features help reduce typical errors but do not 
+eliminate large outlier errors.
+
+On ranking metrics, GFP-GB trails both LightGBM variants 
+(NDCG@10 0.7209 vs.\ 0.7491), which is not surprising: LightGBM's per-entity
+codes already capture most of the user/item bias that drives ranking, and on 
+a dataset this sparse the propagated neighborhood means add limited additional 
+signal. The 2-hop bipartite and social features help the model generalize to 
+cold-start and lightly-rated users, but the graph coverage (30.8\% of users in 
+the social graph) limits how far this benefit reaches.
 
 \section{Comparative Analysis and Discussion}
 \label{sec:comparison}
@@ -352,26 +464,49 @@ LightGBM         & 0.9551 & 0.9690 & 0.7510 & 0.3115 & 0.7295 & 0.7491 \\
 Tuned LightGBM   & TODO   & TODO   & TODO   & TODO   & TODO   & TODO   \\
 NCF              & 0.9884 & 0.9922 & 0.7811 & 0.3045 & 0.7270 & 0.7379 \\
 Social NCF       & 0.9916 & 0.9919 & 0.7794 & 0.3074 & 0.7283 & 0.7422 \\
-GCN              & TODO   & TODO   & TODO   & TODO   & TODO   & TODO   \\
+GFP-GB          & 0.9594 & 0.9708 & 0.7487 & 0.2938 & 0.7327 & 0.7209 \\
 \bottomrule
 \end{tabular}
 \end{table*}
 
 \subsection{Rating Prediction}
 
-TODO
+On RMSE, the two LightGBM variants dominate: the untuned baseline (0.9690) 
+already pushes well below Global Mean (0.9945). GFP-GB (0.9708) is competitive 
+but does not beat it, despite adding 10 graph-derived features on top of the 
+same user/item codes. Social NCF (0.9919) trails further behind, consistent 
+with neural methods needing denser interaction data to outperform tree models. 
+On MAE, GFP-GB (0.7487) narrowly edges the LightGBM baseline (0.7510), 
+suggesting the propagated features reduce typical errors even when they do not 
+reduce the largest ones.
 
 \subsection{Ranking Quality}
 
-TODO
+LightGBM leads on all ranking metrics (NDCG@10 0.7491, P@10 0.3115). Adding 
+graph features (GFP-GB, NDCG@10 0.7209) or social regularization (Social NCF, 
+NDCG@10 0.7422) does not close this gap. The result suggests that per-entity 
+bias captured by user/item codes already explains most of the ranking signal, 
+and the additional graph information does not add enough discriminative power 
+in the top-10 regime to compensate.
 
 \subsection{Effect of Social Information}
 
-TODO
+Social information helps at the margins but does not produce a step-change. 
+In Social NCF, social regularization improved NDCG@10 from 0.7379 to 0.7422 
+and reduced MAE from 0.7811 to 0.7794 over base NCF. In GFP-GB, the 
+\texttt{neighbor\_mean} and \texttt{social\_degree} features added social 
+context, but their impact is limited by graph sparsity: only 30.8\% of users 
+appear in the social graph, so a large fraction of predictions receive no social 
+signal.
 
 \subsection{Ablation Studies}
 
-TODO
+The clearest ablation is between GFP-GB and the untuned LightGBM baseline: 
+the only difference is the addition of 10 graph-propagated features alongside 
+the user/item codes. The resulting RMSE difference is marginal ($\Delta = 
+0.0018$), while MAE improves by 0.0023. This suggests that graph propagation 
+adds modest value over pure entity-ID features on this dataset, and that the 
+bottleneck is data sparsity rather than model expressiveness.
 
 \section{Individual Reflections}
 \label{sec:reflections}
@@ -402,7 +537,23 @@ meant that there just wasn't much signal there in the first place.
 All in all, sparsity sucks. The end.
 
 \subsection{Advait Shinde}
-TODO
+My first attempt was LightGCN~\cite{he2020lightgcn}, which does end-to-end 
+graph convolution over the bipartite user-item graph. It overfit hard --- val 
+RMSE bottomed out at 0.9458 by epoch 4 and climbed from there. The dataset 
+is just too sparse for a purely learned approach to generalize.
+
+Pivoting to handcrafted feature propagation (GFP-GB) was the right call for 
+stability. Shrunk statistics propagated through the graph give the model 
+neighborhood context without requiring the graph signal to survive 
+backpropagation. I also tried a GFP-MLP variant (val RMSE 0.9524 in the 
+notebook) before landing on LightGBM as the predictor, since tree models handle 
+the mixed categorical and continuous feature space better.
+
+The honest result: GFP-GB edged the baseline on MAE but not RMSE or ranking. 
+The propagated features do help, but the bottleneck is that 70\% of users have 
+no social connections and many items have very few raters, so the neighborhood 
+averages collapse toward the global mean anyway. On a denser graph the approach 
+would likely shine more.
 
 \subsection{Jasper Morgal}
 TODO
